@@ -160,15 +160,15 @@ export async function login(email: string, password: string) {
   return res.json();
 }
 
-export async function oauthMock(provider: 'google' | 'apple' | 'demo') {
+export async function oauthMock(provider: 'google' | 'apple' | 'demo', email?: string, name?: string) {
   const res = await fetch(`${API_BASE}/auth/oauth-mock`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider })
+    body: JSON.stringify({ provider, email, name })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'OAuth demo failed');
+    throw new Error(err.detail || 'Authentication failed');
   }
   return res.json();
 }

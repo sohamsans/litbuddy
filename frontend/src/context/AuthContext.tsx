@@ -34,7 +34,7 @@ interface AuthContextType {
   // Actions
   loginWithEmail: (email: string, pass: string) => Promise<void>;
   registerWithEmail: (email: string, pass: string, name?: string) => Promise<void>;
-  loginOAuthMock: (provider: 'google' | 'apple' | 'demo') => Promise<void>;
+  loginOAuthMock: (provider: 'google' | 'apple' | 'demo', email?: string, name?: string) => Promise<void>;
   logout: () => void;
   saveBYOKKeys: (keys: Record<string, any>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -127,8 +127,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsAuthModalOpen(false);
   };
 
-  const loginOAuthMock = async (provider: 'google' | 'apple' | 'demo') => {
-    const res = await api.oauthMock(provider);
+  const loginOAuthMock = async (provider: 'google' | 'apple' | 'demo', email?: string, name?: string) => {
+    const res = await api.oauthMock(provider, email, name);
     localStorage.setItem('autolit_auth_token', res.access_token);
     setToken(res.access_token);
     setIsAuthModalOpen(false);

@@ -111,10 +111,13 @@ async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.post("/oauth-mock", response_model=AuthTokenResponse)
 async def oauth_mock_signin(req: OAuthDemoRequest, db: AsyncSession = Depends(get_db)):
-    """Instant 1-click authentication for Google, Apple, or Quick Demo sessions."""
+    """Account authentication for OAuth providers. Requires real email."""
+    if not req.email or not req.email.strip():
+        raise HTTPException(status_code=400, detail="Please provide a valid email address.")
+
     provider = req.provider.lower()
-    email = req.email.lower().strip() if req.email else f"{provider}_user_{datetime.now().strftime('%Y%m%d%H%M%S')}@autolit.local"
-    name = req.name or f"{provider.capitalize()} User"
+    email = req.email.lower().strip()
+    name = req.name or email.split("@")[0].capitalize()
 
     # Find or create
     stmt = select(User).where(User.email == email)
