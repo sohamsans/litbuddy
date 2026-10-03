@@ -1,0 +1,231 @@
+import asyncio
+from typing import List, Optional
+from app.models.schemas import (
+    SearchRequest,
+    PipelineResponse,
+    ReviewPaper,
+    RawPaperMetadata,
+    TriageItem,
+    SelectedPipelineRequest
+)
+from app.services.academic_search import discover_academic_papers
+from app.services.pdf_service import get_paper_content_slices
+from app.services.llm_provider import LLMService
+from app.config import get_settings
+
+async def process_paper_deep_extraction(
+    paper: RawPaperMetadata,
+    topic: str,
+    score: int,
+    rationale: str,
+    llm: LLMService
+) -> ReviewPaper:
+    """Download OA PDF or fallback to abstract, then run Stage 2 deep extraction with Tier 2 caching."""
+    from app.services.cache_service import get_cached_synthesis, save_paper_synthesis
+
+    # 1. Check Tier 2 Synthesis Cache
+    cached_synthesis = await get_cached_synthesis(paper.doi, paper.title)
+    if cached_synthesis is not None:
+        print(f"[Cache Hit: Tier 2 Synthesis] Reused review for '{paper.title[:50]}' (0 LLM tokens).")
+        # Update relevance score from current triage if appropriate
+        cached_synthesis.relevance_score = score
+        cached_synthesis.triage_rationale = rationale
+        return cached_synthesis
+
+    doi_link = f"https://doi.org/{paper.doi}" if paper.doi else (paper.pdf_url or "")
+    sliced_text, pdf_downloaded = await get_paper_content_slices(
+        doi=paper.doi,
+        pdf_url=paper.pdf_url,
+        abstract=paper.abstract
+    )
+
+    paper_meta = {
+        "id": paper.id,
+        "title": paper.title,
+        "year": paper.year,
+        "authors": paper.authors,
+        "venue": paper.venue,
+        "relevance_score": score,
+        "triage_rationale": rationale,
+        "doi_link": doi_link,
+        "pdf_downloaded": pdf_downloaded,
+        "source": paper.source,
+        "abstract": paper.abstract
+    }
+
+    review_item = await llm.deep_extraction(
+        topic=topic,
+        paper_meta=paper_meta,
+        text_slice=sliced_text
+    )
+
+    # 2. Save into Tier 2 Synthesis Cache
+    await save_paper_synthesis(review_item)
+
+    return review_item
+
+async def run_literature_review_pipeline(request: SearchRequest) -> PipelineResponse:
+    """Execute complete end-to-end AutoLit AI review pipeline."""
+    settings = get_settings()
+    llm = LLMService(
+        provider=request.model_provider,
+        model_name=request.model_name,
+        groq_key=request.groq_api_key,
+        gemini_key=request.gemini_api_key,
+        openrouter_key=request.openrouter_api_key,
+        deepseek_key=request.deepseek_api_key,
+        nvidia_key=request.nvidia_api_key,
+        custom_key=request.custom_api_key,
+        custom_base_url=request.custom_base_url
+    )
+    warnings: List[str] = []
+
+    # Phase A: Academic Discovery (Deep Pool with Rate Shield)
+    raw_papers: List[RawPaperMetadata] = await discover_academic_papers(
+        topic=request.topic,
+        max_results=request.max_results,
+        offset=request.offset,
+        exclude_dois=request.exclude_dois,
+        year_min=request.year_min,
+        year_max=request.year_max,
+        no_year_constraint=request.no_year_constraint
+    )
+
+    if not raw_papers:
+        return PipelineResponse(
+            topic=request.topic,
+            total_discovered=0,
+            total_triaged=0,
+            total_selected=0,
+            papers=[],
+            warnings=["No academic literature matching your query was found across discovery engines."]
+        )
+
+    # Phase B: Stage 1 Batch Triage (1 Cloud LLM call)
+    candidate_dicts = [p.model_dump() for p in raw_papers]
+    triage_result = await llm.batch_triage(topic=request.topic, candidates=candidate_dicts)
+    triage_map = {item.id: item for item in triage_result.evaluations}
+
+    # Filter top papers (score >= threshold, capped at max_top_papers)
+    selected_papers: List[RawPaperMetadata] = []
+    for p in raw_papers:
+        triage_info = triage_map.get(p.id)
+        score = triage_info.score if triage_info else 3
+        if score >= request.relevance_threshold:
+            selected_papers.append(p)
+            if len(selected_papers) >= settings.max_top_papers:
+                break
+
+    if not selected_papers and raw_papers:
+        sorted_by_score = sorted(
+            raw_papers,
+            key=lambda x: triage_map.get(x.id, TriageItem(id=x.id, score=1, rationale="")).score,
+            reverse=True
+        )
+        selected_papers = sorted_by_score[:3]
+        warnings.append(
+            f"No papers met threshold score of {request.relevance_threshold}. Included top {len(selected_papers)} papers."
+        )
+
+    # Phase C & D: Deep Extraction
+    extracted_papers: List[ReviewPaper] = []
+    semaphore = asyncio.Semaphore(4)
+
+    async def bounded_process(p: RawPaperMetadata):
+        async with semaphore:
+            t_info = triage_map.get(p.id)
+            score = t_info.score if t_info else 4
+            rationale = t_info.rationale if t_info else "Passed initial screening."
+            return await process_paper_deep_extraction(p, request.topic, score, rationale, llm)
+
+    tasks = [bounded_process(p) for p in selected_papers]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for res in results:
+        if isinstance(res, ReviewPaper):
+            extracted_papers.append(res)
+        else:
+            print(f"[Pipeline Error processing paper]: {res}")
+
+    return PipelineResponse(
+        topic=request.topic,
+        total_discovered=len(raw_papers),
+        total_triaged=len(triage_result.evaluations),
+        total_selected=len(extracted_papers),
+        papers=extracted_papers,
+        warnings=warnings
+    )
+
+async def run_pipeline_on_selected_papers(request: SelectedPipelineRequest) -> PipelineResponse:
+    """Step 2: Execute Stage 1 Triage & Stage 2 Deep Extraction on user-selected papers."""
+    settings = get_settings()
+    llm = LLMService(
+        provider=request.model_provider,
+        model_name=request.model_name,
+        groq_key=request.groq_api_key,
+        gemini_key=request.gemini_api_key,
+        openrouter_key=request.openrouter_api_key,
+        deepseek_key=request.deepseek_api_key,
+        nvidia_key=request.nvidia_api_key,
+        custom_key=request.custom_api_key,
+        custom_base_url=request.custom_base_url
+    )
+    warnings: List[str] = []
+
+    if not request.selected_papers:
+        return PipelineResponse(
+            topic=request.topic,
+            total_discovered=0,
+            total_triaged=0,
+            total_selected=0,
+            papers=[],
+            warnings=["No papers were selected for synthesis."]
+        )
+
+    # Stage 1: Batch Triage on selected candidate set
+    candidate_dicts = [p.model_dump() for p in request.selected_papers]
+    triage_result = await llm.batch_triage(topic=request.topic, candidates=candidate_dicts)
+    triage_map = {item.id: item for item in triage_result.evaluations}
+
+    # Filter top papers or respect user choice (up to 12 max for deep extraction)
+    filtered: List[RawPaperMetadata] = []
+    for p in request.selected_papers:
+        t_info = triage_map.get(p.id)
+        score = t_info.score if t_info else 4
+        if score >= request.relevance_threshold:
+            filtered.append(p)
+            if len(filtered) >= 12:
+                break
+
+    if not filtered:
+        filtered = request.selected_papers[:min(len(request.selected_papers), 6)]
+        warnings.append(f"Included top {len(filtered)} selected papers.")
+
+    # Stage 2: Deep extraction
+    extracted_papers: List[ReviewPaper] = []
+    semaphore = asyncio.Semaphore(4)
+
+    async def bounded_process(p: RawPaperMetadata):
+        async with semaphore:
+            t_info = triage_map.get(p.id)
+            score = t_info.score if t_info else 4
+            rationale = t_info.rationale if t_info else "Selected by researcher."
+            return await process_paper_deep_extraction(p, request.topic, score, rationale, llm)
+
+    tasks = [bounded_process(p) for p in filtered]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    for res in results:
+        if isinstance(res, ReviewPaper):
+            extracted_papers.append(res)
+        else:
+            print(f"[Selected Pipeline Error]: {res}")
+
+    return PipelineResponse(
+        topic=request.topic,
+        total_discovered=len(request.selected_papers),
+        total_triaged=len(triage_result.evaluations),
+        total_selected=len(extracted_papers),
+        papers=extracted_papers,
+        warnings=warnings
+    )

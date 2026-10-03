@@ -1,0 +1,44 @@
+# Virtual environments
+.venv/
+backend/.venv/
+env/
+venv/
+ENV/
+
+# Node dependencies & builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Python & PyInstaller build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec.bak
+build/
+dist/
+*.egg-info/
+
+# Local databases & paper storage
+*.db
+*.sqlite
+*.sqlite3
+autolit.db
+backend/autolit.db
+app_data/
+backend/app_data/
+LitBuddy Papers/
+backend/LitBuddy Papers/
+figures/
+backend/figures/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# Sensitive environment variables
+.env
+backend/.env

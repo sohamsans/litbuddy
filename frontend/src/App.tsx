@@ -1,0 +1,542 @@
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { GeminiInputBar } from './components/GeminiInputBar';
+import { GeminiThinking } from './components/GeminiThinking';
+import { CandidatePreviewTable } from './components/CandidatePreviewTable';
+import { LiteratureTable } from './components/LiteratureTable';
+import { PaperDetailModal } from './components/PaperDetailModal';
+import { AssistantChatDrawer } from './components/AssistantChatDrawer';
+import { ExportBar } from './components/ExportBar';
+import { AuthModal } from './components/AuthModal';
+import { OnboardingKeyModal } from './components/OnboardingKeyModal';
+import { SourcesSidebar } from './components/SourcesSidebar';
+import { PaperChatArea } from './components/PaperChatArea';
+import { MasterReferenceManager } from './components/MasterReferenceManager';
+import { DownloadManagerView } from './components/DownloadManagerView';
+import { PdfViewerModal } from './components/PdfViewerModal';
+import { OnboardingTourModal } from './components/OnboardingTourModal';
+import { CookieBanner } from './components/CookieBanner';
+import { LegalModal } from './components/LegalModal';
+import { fetchHealthStatus, discoverPapers, runSelectedPipeline, runReviewPipeline, bulkDownloadPapers } from './services/api';
+import {
+  HealthStatus,
+  PipelineResponse,
+  PipelineStage,
+  ReviewPaper,
+  RawPaperMetadata,
+  SearchRequest,
+  VaultPaperItem
+} from './types';
+import { AlertCircle, BookOpen, MessageSquare, Table } from 'lucide-react';
+
+const MainLayout: React.FC = () => {
+  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSourcesSidebarOpen, setIsSourcesSidebarOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [stage, setStage] = useState<PipelineStage>('idle');
+  const [viewMode, setViewMode] = useState<'matrix' | 'chat'>('matrix');
+  const [mainTab, setMainTab] = useState<'research' | 'references' | 'downloads'>('research');
+
+  // PDF Viewer Modal
+  const [viewerVaultId, setViewerVaultId] = useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = useState('');
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  // Onboarding Tutorial Tour
+  const [isTourOpen, setIsTourOpen] = useState(false);
+
+  // Legal Modal
+  const [legalModalType, setLegalModalType] = useState<'terms' | 'privacy' | null>(null);
+
+  // Search state & Pagination
+  const [currentTopic, setCurrentTopic] = useState('');
+  const [searchOffset, setSearchOffset] = useState(0);
+  const [discoveredPapers, setDiscoveredPapers] = useState<RawPaperMetadata[]>([]);
+  const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
+  const [reviewResults, setReviewResults] = useState<PipelineResponse | null>(null);
+  const [selectedReviewPaper, setSelectedReviewPaper] = useState<ReviewPaper | null>(null);
+  const [activeCitationIndex, setActiveCitationIndex] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRequestParams, setLastRequestParams] = useState<any>(null);
+
+  const { activeProvider, activeModel, runtimeKeys } = useAuth();
+
+  useEffect(() => {
+    fetchHealthStatus()
+      .then(setHealth)
+      .catch((err) => console.warn('Health check warning:', err));
+
+    if (!localStorage.getItem('litbuddy_tour_completed')) {
+      setIsTourOpen(true);
+    }
+  }, []);
+
+  const handleSearch = async (
+    params: {
+      topic: string;
+      maxResults: number;
+      yearMin?: number;
+      yearMax?: number;
+      noYearConstraint: boolean;
+      relevanceThreshold: number;
+      mode: 'discover' | 'autonomous';
+    },
+    isAppend: boolean = false
+  ) => {
+    setError(null);
+    setCurrentTopic(params.topic);
+    setLastRequestParams(params);
+
+    const isSameTopic = params.topic.toLowerCase().trim() === currentTopic.toLowerCase().trim();
+    const newOffset = isAppend || isSameTopic ? searchOffset + params.maxResults : 0;
+    if (!isAppend && !isSameTopic) {
+      setSearchOffset(0);
+    } else {
+      setSearchOffset(newOffset);
+    }
+
+    // Collect DOIs to exclude from previous searches
+    const existingDois = [
+      ...discoveredPapers.map((p) => p.doi || p.id),
+      ...(reviewResults ? reviewResults.papers.map((p) => (p as any).doi || p.id) : [])
+    ].filter(Boolean);
+
+    const request: SearchRequest = {
+      topic: params.topic,
+      max_results: params.maxResults,
+      offset: newOffset,
+      exclude_dois: existingDois,
+      year_min: params.yearMin,
+      year_max: params.yearMax,
+      no_year_constraint: params.noYearConstraint,
+      relevance_threshold: params.relevanceThreshold,
+      model_provider: activeProvider,
+      model_name: activeModel,
+      groq_api_key: runtimeKeys.groq,
+      gemini_api_key: runtimeKeys.gemini,
+      openrouter_api_key: runtimeKeys.openrouter,
+      deepseek_api_key: runtimeKeys.deepseek,
+      nvidia_api_key: runtimeKeys.nvidia,
+      custom_api_key: runtimeKeys.custom,
+      custom_base_url: runtimeKeys.custom_base_url
+    };
+
+    if (params.mode === 'discover') {
+      // Step 1: Candidate Pool Discovery
+      setStage('discovering');
+      if (!isAppend) setReviewResults(null);
+      try {
+        const response = await discoverPapers(request);
+        if (isAppend) {
+          setDiscoveredPapers((prev) => [...prev, ...response.papers]);
+          setSelectedPaperIds((prev) => {
+            const next = new Set(prev);
+            response.papers.forEach((p) => next.add(p.id));
+            return next;
+          });
+        } else {
+          setDiscoveredPapers(response.papers);
+          setSelectedPaperIds(new Set(response.papers.map((p) => p.id)));
+        }
+        setStage('idle');
+      } catch (err: any) {
+        setStage('error');
+        setError(err.message || 'Discovery failed.');
+      }
+    } else {
+      // Direct Autonomous Full Synthesis
+      if (!isAppend) setDiscoveredPapers([]);
+      setStage('discovering');
+      try {
+        const triageTimer = setTimeout(() => setStage('triaging'), 1200);
+        const extractTimer = setTimeout(() => setStage('extracting'), 3200);
+
+        const response = await runReviewPipeline(request);
+
+        clearTimeout(triageTimer);
+        clearTimeout(extractTimer);
+
+        setReviewResults(response);
+        setStage('completed');
+        setViewMode('chat');
+        setIsSourcesSidebarOpen(true);
+      } catch (err: any) {
+        setStage('error');
+        setError(err.message || 'Pipeline execution failed.');
+      }
+    }
+  };
+
+  const handleProceedToSynthesis = async () => {
+    if (!lastRequestParams || selectedPaperIds.size === 0) return;
+
+    setError(null);
+    setStage('triaging');
+
+    const selectedList = discoveredPapers.filter((p) => selectedPaperIds.has(p.id));
+
+    try {
+      const extractTimer = setTimeout(() => setStage('extracting'), 2500);
+
+      const response = await runSelectedPipeline({
+        topic: lastRequestParams.topic,
+        selected_papers: selectedList,
+        relevance_threshold: lastRequestParams.relevanceThreshold,
+        model_provider: activeProvider,
+        model_name: activeModel,
+        groq_api_key: runtimeKeys.groq,
+        gemini_api_key: runtimeKeys.gemini,
+        openrouter_api_key: runtimeKeys.openrouter,
+        deepseek_api_key: runtimeKeys.deepseek,
+        nvidia_api_key: runtimeKeys.nvidia,
+        custom_api_key: runtimeKeys.custom,
+        custom_base_url: runtimeKeys.custom_base_url
+      });
+
+      clearTimeout(extractTimer);
+      setReviewResults(response);
+      setStage('completed');
+      setViewMode('chat');
+      setIsSourcesSidebarOpen(true);
+    } catch (err: any) {
+      setStage('error');
+      setError(err.message || 'Synthesis failed.');
+    }
+  };
+
+  const handleBulkDownload = async (papersToDownload: (RawPaperMetadata | ReviewPaper)[]) => {
+    try {
+      const items: VaultPaperItem[] = papersToDownload.map((p) => ({
+        id: p.id,
+        title: p.title,
+        doi: (p as any).doi || ((p as any).doi_link ? (p as any).doi_link.replace(/^https?:\/\/doi\.org\//, '') : undefined),
+        pdf_url: (p as any).pdf_url,
+        source: (p as any).source,
+        authors: p.authors,
+        year: p.year,
+        venue: (p as any).venue,
+      }));
+      await bulkDownloadPapers(items);
+    } catch (err: any) {
+      alert(err.message || 'Failed to generate bulk ZIP archive');
+    }
+  };
+
+  const resetToNewReview = () => {
+    setCurrentTopic('');
+    setDiscoveredPapers([]);
+    setSelectedPaperIds(new Set());
+    setReviewResults(null);
+    setError(null);
+    setStage('idle');
+  };
+
+  return (
+    <div className="min-h-screen flex bg-[#131314] gemini-depth-bg text-[#e3e3e3] overflow-hidden">
+      {/* 1. Left Sidebar: Gemini Navigation & Chat History */}
+      <Sidebar
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
+        onNewReview={resetToNewReview}
+        onSelectTopic={(topic) => {
+          setCurrentTopic(topic);
+          handleSearch({
+            topic,
+            maxResults: 50,
+            noYearConstraint: true,
+            relevanceThreshold: 4,
+            mode: 'discover'
+          });
+        }}
+      />
+
+      {/* 2. Center Workspace Area */}
+      <div
+        className={`flex-1 flex flex-col transition-all duration-300 min-w-0 ${
+          isSidebarOpen ? 'ml-64' : 'ml-16'
+        }`}
+      >
+        <Header
+          health={health}
+          onOpenAssistant={() => setIsAssistantOpen(true)}
+          activeTab={mainTab}
+          onTabChange={setMainTab}
+          onOpenTutorial={() => setIsTourOpen(true)}
+        />
+
+        {mainTab === 'references' ? (
+          <MasterReferenceManager
+            onOpenPdf={(vaultId, title) => {
+              setViewerVaultId(vaultId);
+              setViewerTitle(title);
+              setIsViewerOpen(true);
+            }}
+            onChatAboutPaper={(paper) => {
+              setCurrentTopic(paper.title);
+              setViewMode('chat');
+              setMainTab('research');
+            }}
+          />
+        ) : mainTab === 'downloads' ? (
+          <DownloadManagerView
+            onOpenPdf={(vaultId, title) => {
+              setViewerVaultId(vaultId);
+              setViewerTitle(title);
+              setIsViewerOpen(true);
+            }}
+          />
+        ) : (
+          <>
+            {/* View Toggle Bar (Only shown once papers exist) */}
+            {(reviewResults && reviewResults.papers.length > 0) && (
+              <div className="px-6 py-2 border-b border-[#3c4043]/50 flex items-center justify-between bg-[#1e1f20]/40 backdrop-blur-xs">
+                <div className="flex items-center gap-1 bg-[#171718] p-1 rounded-xl border border-[#3c4043]">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('chat')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      viewMode === 'chat'
+                        ? 'bg-[#8ab4f8] text-[#131314]'
+                        : 'text-[#9aa0a6] hover:text-[#e3e3e3]'
+                    }`}
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Grounded Chat (KaTeX)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setViewMode('matrix')}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                      viewMode === 'matrix'
+                        ? 'bg-[#8ab4f8] text-[#131314]'
+                        : 'text-[#9aa0a6] hover:text-[#e3e3e3]'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>Review Matrix</span>
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSourcesSidebarOpen(!isSourcesSidebarOpen)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-[#8ab4f8] transition-colors"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  <span>{isSourcesSidebarOpen ? 'Hide Sources' : 'Open Sources & Citations'}</span>
+                </button>
+              </div>
+            )}
+
+            {/* Dynamic Center Stage: Chat or Matrix or Discovery */}
+            {viewMode === 'chat' && reviewResults && reviewResults.papers.length > 0 ? (
+              <PaperChatArea
+                key={currentTopic}
+                topic={currentTopic}
+                synthesizedPapers={reviewResults.papers}
+                candidatePool={discoveredPapers}
+                onOpenSources={() => setIsSourcesSidebarOpen(true)}
+                onSelectCitation={(idx) => {
+                  setActiveCitationIndex(idx);
+                  const target = reviewResults.papers[idx - 1];
+                  if (target) setSelectedReviewPaper(target);
+                }}
+                onSearchQuery={(q) => {
+                  const cleanQ = q.replace(/(state of the art benchmarks|comparative analysis|comparative benchmarks)/gi, '').trim() || q;
+                  handleSearch({
+                    topic: cleanQ,
+                    maxResults: 25,
+                    noYearConstraint: true,
+                    relevanceThreshold: 4,
+                    mode: 'discover'
+                  }, true);
+                }}
+              />
+            ) : (
+          <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 py-6 flex flex-col overflow-y-auto">
+            {/* Hero Section & Gemini Capsule Input */}
+            {(!reviewResults && discoveredPapers.length === 0 && stage === 'idle') && (
+              <div className="flex-1 flex flex-col justify-center items-center my-auto min-h-[50vh]">
+                <GeminiInputBar
+                  onSearch={handleSearch}
+                  isLoading={false}
+                  initialTopic={currentTopic}
+                  onOpenAssistant={() => setIsAssistantOpen(true)}
+                />
+              </div>
+            )}
+
+            {/* Compact Top Search Bar */}
+            {(discoveredPapers.length > 0 || reviewResults || stage !== 'idle') && (
+              <div className="mb-6">
+                <GeminiInputBar
+                  onSearch={handleSearch}
+                  isLoading={stage === 'discovering' || stage === 'triaging' || stage === 'extracting'}
+                  initialTopic={currentTopic}
+                  onOpenAssistant={() => setIsAssistantOpen(true)}
+                />
+              </div>
+            )}
+
+            {/* Gemini Minimal Thinking Dropdown */}
+            <GeminiThinking stage={stage} />
+
+            {/* Error Notice */}
+            {error && (
+              <div className="bg-[#f28b82]/10 border border-[#f28b82]/30 rounded-2xl p-4 my-4 flex items-start gap-3 text-[#f28b82] text-xs animate-fadeIn">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Review Pipeline Notice</p>
+                  <p>{error}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Step 1: Candidate Preview Table */}
+            {discoveredPapers.length > 0 && !reviewResults && (
+              <div className="animate-fadeIn">
+                <CandidatePreviewTable
+                  papers={discoveredPapers}
+                  selectedIds={selectedPaperIds}
+                  onToggleSelect={(id) => {
+                    setSelectedPaperIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    });
+                  }}
+                  onSelectAll={() => setSelectedPaperIds(new Set(discoveredPapers.map((p) => p.id)))}
+                  onDeselectAll={() => setSelectedPaperIds(new Set())}
+                  onProceedToSynthesis={handleProceedToSynthesis}
+                  onBulkDownload={handleBulkDownload}
+                  isProcessing={stage === 'triaging' || stage === 'extracting'}
+                />
+              </div>
+            )}
+
+            {/* Step 2: Final Synthesized Review Matrix */}
+            {reviewResults && reviewResults.papers.length > 0 && (
+              <div className="animate-fadeIn">
+                <ExportBar papers={reviewResults.papers} topic={currentTopic} />
+                <LiteratureTable
+                  papers={reviewResults.papers}
+                  onSelectPaper={(paper) => setSelectedReviewPaper(paper)}
+                />
+              </div>
+            )}
+
+            {/* Empty State */}
+            {reviewResults && reviewResults.papers.length === 0 && stage === 'completed' && (
+              <div className="rounded-2xl bg-[#1e1f20] border border-[#3c4043] p-12 text-center text-[#9aa0a6] animate-fadeIn my-auto">
+                <BookOpen className="w-10 h-10 mx-auto text-[#9aa0a6] mb-3" />
+                <h4 className="text-sm font-semibold text-[#e3e3e3] mb-1">No Relevant Papers Found</h4>
+                <p className="text-xs max-w-sm mx-auto">
+                  Try broadening your query, lowering the minimum relevance threshold, or selecting a wider publication window.
+                </p>
+              </div>
+            )}
+          </main>
+        )}
+          </>
+        )}
+      </div>
+
+      {/* 3. Right Sidebar: NotebookLM Sources, Pool & Reference Manager */}
+      <SourcesSidebar
+        isOpen={isSourcesSidebarOpen}
+        onClose={() => setIsSourcesSidebarOpen(false)}
+        synthesizedPapers={reviewResults ? reviewResults.papers : []}
+        candidatePool={discoveredPapers}
+        activeCitationIndex={activeCitationIndex}
+        onOpenPdf={(vaultId, title) => {
+          setViewerVaultId(vaultId);
+          setViewerTitle(title);
+          setIsViewerOpen(true);
+        }}
+        onSelectPaper={(p) => {
+          if ('core_problem' in p) {
+            setSelectedReviewPaper(p as ReviewPaper);
+          }
+        }}
+        onSearchMore={(q) => {
+          handleSearch({
+            topic: q,
+            maxResults: 25,
+            noYearConstraint: true,
+            relevanceThreshold: 4,
+            mode: 'discover'
+          }, true);
+        }}
+        onBulkDownload={handleBulkDownload}
+      />
+
+      {/* Modals & Slide-outs */}
+      <PaperDetailModal
+        paper={selectedReviewPaper}
+        onClose={() => setSelectedReviewPaper(null)}
+      />
+
+      <AssistantChatDrawer
+        isOpen={isAssistantOpen}
+        onClose={() => setIsAssistantOpen(false)}
+        onApplyQuery={(query) => {
+          setCurrentTopic(query);
+          handleSearch({
+            topic: query,
+            maxResults: 50,
+            noYearConstraint: true,
+            relevanceThreshold: 4,
+            mode: 'discover'
+          });
+        }}
+      />
+
+      <CookieBanner
+        onOpenPrivacy={() => setLegalModalType('privacy')}
+        onOpenTerms={() => setLegalModalType('terms')}
+      />
+
+      <LegalModal
+        isOpen={legalModalType !== null}
+        type={legalModalType || 'terms'}
+        onClose={() => setLegalModalType(null)}
+      />
+
+      <PdfViewerModal
+        isOpen={isViewerOpen}
+        vaultId={viewerVaultId}
+        title={viewerTitle}
+        onClose={() => {
+          setIsViewerOpen(false);
+          setViewerVaultId(null);
+        }}
+      />
+
+      <OnboardingTourModal
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+      />
+
+      <AuthModal />
+      <OnboardingKeyModal />
+    </div>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <MainLayout />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+};
+
+export default App;

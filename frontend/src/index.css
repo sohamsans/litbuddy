@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-primary: #ffffff;
+    --bg-surface: #f0f4f9;
+    --bg-card: #ffffff;
+    --text-primary: #1f1f1f;
+    --text-secondary: #444746;
+    --border-color: #dadce0;
+  }
+
+  .dark {
+    --bg-primary: #131314;
+    --bg-surface: #1e1f20;
+    --bg-card: #1e1f20;
+    --text-primary: #e3e3e3;
+    --text-secondary: #9aa0a6;
+    --border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    min-height: 100vh;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Gemini Center Atmospheric Radial Depth Spotlight */
+.gemini-depth-bg {
+  background: radial-gradient(ellipse 65% 55% at 50% 45%, rgba(66, 133, 244, 0.15) 0%, rgba(155, 114, 203, 0.08) 35%, rgba(19, 19, 20, 0) 75%), #131314;
+}
+
+.gemini-depth-bg-light {
+  background: radial-gradient(ellipse 65% 55% at 50% 45%, rgba(66, 133, 244, 0.07) 0%, rgba(155, 114, 203, 0.04) 35%, rgba(255, 255, 255, 0) 75%), #ffffff;
+}
+
+/* Google Rainbow Gradient */
+.google-gradient-text {
+  background: linear-gradient(135deg, #4285F4 0%, #9B72CB 40%, #D96570 75%, #F4B400 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.google-gradient-bg {
+  background: linear-gradient(135deg, #4285F4 0%, #9B72CB 40%, #D96570 75%, #F4B400 100%);
+}
+
+.google-gradient-border {
+  border-image: linear-gradient(135deg, #4285F4, #9B72CB, #D96570, #F4B400) 1;
+}
+
+/* Gemini Capsule Search Box */
+.gemini-capsule-dark {
+  background-color: #1e1f20;
+  border: 1px solid #3c4043;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gemini-capsule-dark:focus-within {
+  border-color: #5f6368;
+  box-shadow: 0 6px 28px rgba(0, 0, 0, 0.45);
+}
+
+.gemini-capsule-light {
+  background-color: #ffffff;
+  border: 1px solid #dadce0;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gemini-capsule-light:focus-within {
+  border-color: #1a73e8;
+  box-shadow: 0 6px 24px rgba(26, 115, 232, 0.12);
+}
+
+/* Gemini Suggestion Chip */
+.gemini-chip-dark {
+  background-color: #1e1f20;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #c4c7c5;
+  transition: all 0.2s ease;
+}
+
+.gemini-chip-dark:hover {
+  background-color: #282a2c;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.gemini-chip-light {
+  background-color: #f0f4f9;
+  border: 1px solid #e1e3e1;
+  color: #444746;
+  transition: all 0.2s ease;
+}
+
+.gemini-chip-light:hover {
+  background-color: #e9eef6;
+  color: #1f1f1f;
+  border-color: #c4c7c5;
+}
+
+/* Refined Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Rich Markdown, GFM Tables, & KaTeX Styles */
+.latex-content {
+  overflow-wrap: break-word;
+}
+
+.latex-content table {
+  width: 100%;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid #3c4043;
+  border-radius: 0.85rem;
+  overflow: hidden;
+  font-size: 0.78rem;
+}
+
+.latex-content th {
+  background-color: #1e1f20;
+  color: #8ab4f8;
+  font-weight: 600;
+  text-align: left;
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #3c4043;
+  letter-spacing: 0.02em;
+}
+
+.latex-content td {
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid rgba(60, 64, 67, 0.4);
+  color: #e3e3e3;
+  line-height: 1.5;
+}
+
+.latex-content tr:last-child td {
+  border-bottom: none;
+}
+
+.latex-content tr:nth-child(even) {
+  background-color: rgba(30, 31, 32, 0.5);
+}
+
+.latex-content tr:hover {
+  background-color: rgba(40, 42, 44, 0.7);
+}
+
+.latex-content strong,
+.latex-content b {
+  font-weight: 600;
+  color: #f1f3f4;
+}
+
+.latex-content em,
+.latex-content i {
+  font-style: italic;
+  color: #d2e3fc;
+}
+
+.latex-content ul {
+  list-style-type: disc;
+  padding-left: 1.4rem;
+  margin: 0.6rem 0;
+}
+
+.latex-content ol {
+  list-style-type: decimal;
+  padding-left: 1.4rem;
+  margin: 0.6rem 0;
+}
+
+.latex-content li {
+  margin: 0.35rem 0;
+}
+
+.latex-content p {
+  margin: 0.5rem 0;
+  line-height: 1.65;
+}
+
+.latex-content blockquote {
+  border-left: 3px solid #8ab4f8;
+  padding-left: 0.85rem;
+  margin: 0.6rem 0;
+  color: #9aa0a6;
+}
+
+.latex-content code:not(pre code) {
+  background-color: #1e1f20;
+  border: 1px solid #3c4043;
+  color: #8ab4f8;
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.35rem;
+  font-size: 0.8rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.latex-content pre {
+  background-color: #1e1f20;
+  border: 1px solid #3c4043;
+  padding: 0.75rem 1rem;
+  border-radius: 0.75rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
