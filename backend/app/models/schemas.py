@@ -148,9 +148,23 @@ class HealthStatus(BaseModel):
 # ----------------- Auth & BYOK Schemas -----------------
 
 class UserRegisterRequest(BaseModel):
+    username: str
     email: str
     password: str
-    name: Optional[str] = "Researcher"
+    name: Optional[str] = None
+
+class VerifyCodeRequest(BaseModel):
+    email: str
+    code: str
+
+class ResendCodeRequest(BaseModel):
+    email: str
+
+class RegistrationResponse(BaseModel):
+    status: str
+    email: str
+    message: str
+    dev_code: Optional[str] = None
 
 class UserLoginRequest(BaseModel):
     email: str
@@ -167,11 +181,14 @@ class AuthTokenResponse(BaseModel):
     user_id: str
     email: str
     name: str
+    username: Optional[str] = None
 
 class UserProfileResponse(BaseModel):
     id: str
     email: str
+    username: Optional[str] = None
     name: str
+    is_verified: bool = True
     auth_provider: str
     selected_model: str
     theme_pref: str

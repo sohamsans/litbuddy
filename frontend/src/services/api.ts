@@ -134,11 +134,11 @@ export async function sendPaperQA(request: {
 
 // ---------------- Auth & BYOK APIs ----------------
 
-export async function register(email: string, password: string, name?: string) {
+export async function register(username: string, email: string, password: string, name?: string): Promise<{ status: string; email: string; message: string; dev_code?: string }> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password, name })
+    body: JSON.stringify({ username, email, password, name })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -147,28 +147,41 @@ export async function register(email: string, password: string, name?: string) {
   return res.json();
 }
 
-export async function login(email: string, password: string) {
-  const res = await fetch(`${API_BASE}/auth/login`, {
+export async function verifyCode(email: string, code: string): Promise<{ access_token: string; user_id: string; email: string; name: string; username?: string }> {
+  const res = await fetch(`${API_BASE}/auth/verify-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, code })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Login failed');
+    throw new Error(err.detail || 'Verification failed');
   }
   return res.json();
 }
 
-export async function oauthMock(provider: 'google' | 'apple' | 'demo', email?: string, name?: string) {
-  const res = await fetch(`${API_BASE}/auth/oauth-mock`, {
+export async function resendCode(email: string): Promise<{ status: string; message: string; dev_code?: string }> {
+  const res = await fetch(`${API_BASE}/auth/resend-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ provider, email, name })
+    body: JSON.stringify({ email })
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Authentication failed');
+    throw new Error(err.detail || 'Resend code failed');
+  }
+  return res.json();
+}
+
+export async function login(identifier: string, password: string): Promise<{ access_token: string; user_id: string; email: string; name: string; username?: string }> {
+  const res = await fetch(`${API_BASE}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: identifier, password })
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Login failed');
   }
   return res.json();
 }
@@ -455,8 +468,9 @@ export const api = {
   sendAssistantChat,
   sendPaperQA,
   register,
+  verifyCode,
+  resendCode,
   login,
-  oauthMock,
   getProfile,
   saveKeys,
   getProvidersInfo,

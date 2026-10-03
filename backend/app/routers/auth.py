@@ -1,14 +1,17 @@
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, delete
+from sqlalchemy import select, or_, desc, delete
 from app.db.database import get_db
 from app.db.models import User, ChatHistory, DiscoveryCache
 from app.models.schemas import (
     UserRegisterRequest,
     UserLoginRequest,
+    VerifyCodeRequest,
+    ResendCodeRequest,
+    RegistrationResponse,
     OAuthDemoRequest,
     AuthTokenResponse,
     UserProfileResponse,
@@ -28,6 +31,7 @@ from app.services.auth_service import (
     PROVIDERS_METADATA,
     SECURITY_ASSURANCE
 )
+from app.services.email_service import generate_verification_code, send_verification_email
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication & BYOK"])
 
@@ -66,78 +70,164 @@ def get_providers_info():
         "security_assurance": SECURITY_ASSURANCE
     }
 
-@router.post("/register", response_model=AuthTokenResponse)
+@router.post("/register", response_model=RegistrationResponse)
 async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get_db)):
-    """Create new account with email & password."""
+    """Create new account with username, email & password and send 6-digit verification code."""
+    clean_email = req.email.lower().strip()
+    clean_username = req.username.lower().strip()
+
+    if len(clean_username) < 3:
+        raise HTTPException(status_code=400, detail="Username must be at least 3 characters.")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters.")
+
     # Check if user already exists
-    stmt = select(User).where(User.email == req.email.lower().strip())
+    stmt = select(User).where(or_(User.email == clean_email, User.username == clean_username))
     existing = (await db.execute(stmt)).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=400, detail="An account with this email already exists.")
+        if existing.is_verified:
+            if existing.email == clean_email:
+                raise HTTPException(status_code=400, detail="An account with this email already exists.")
+            else:
+                raise HTTPException(status_code=400, detail="An account with this username already exists.")
+        else:
+            # Re-register unverified account with fresh code
+            existing.username = clean_username
+            existing.name = req.name or clean_username.capitalize()
+            existing.password_hash = hash_password(req.password)
+            code = generate_verification_code()
+            existing.verification_code = code
+            existing.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+            await db.commit()
+            email_res = await send_verification_email(clean_email, clean_username, code)
+            return RegistrationResponse(
+                status="pending_verification",
+                email=clean_email,
+                message="A 6-digit verification code has been sent to your email.",
+                dev_code=email_res.get("dev_code")
+            )
 
+    code = generate_verification_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     new_user = User(
-        email=req.email.lower().strip(),
-        name=req.name or "Researcher",
+        email=clean_email,
+        username=clean_username,
+        name=req.name or clean_username.capitalize(),
         password_hash=hash_password(req.password),
+        is_verified=False,
+        verification_code=code,
+        code_expires_at=expires_at,
         auth_provider="local"
     )
     db.add(new_user)
     await db.commit()
-    await db.refresh(new_user)
 
-    token = create_access_token(user_id=new_user.id, email=new_user.email)
+    email_res = await send_verification_email(clean_email, clean_username, code)
+    return RegistrationResponse(
+        status="pending_verification",
+        email=clean_email,
+        message="A 6-digit verification code has been sent to your email.",
+        dev_code=email_res.get("dev_code")
+    )
+
+@router.post("/verify-code", response_model=AuthTokenResponse)
+async def verify_user_code(req: VerifyCodeRequest, db: AsyncSession = Depends(get_db)):
+    """Verify 6-digit email code and issue permanent session token."""
+    clean_email = req.email.lower().strip()
+    clean_code = req.code.strip()
+
+    stmt = select(User).where(User.email == clean_email)
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found. Please create an account.")
+
+    if user.is_verified:
+        token = create_access_token(user_id=user.id, email=user.email)
+        return AuthTokenResponse(
+            access_token=token,
+            user_id=user.id,
+            email=user.email,
+            name=user.name,
+            username=user.username
+        )
+
+    if not user.verification_code or user.verification_code != clean_code:
+        raise HTTPException(status_code=400, detail="Invalid verification code. Please check your email.")
+
+    now = datetime.now(timezone.utc)
+    exp = user.code_expires_at
+    if exp:
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if exp < now:
+            raise HTTPException(status_code=400, detail="Verification code has expired. Please click 'Resend Code'.")
+
+    user.is_verified = True
+    user.verification_code = None
+    user.code_expires_at = None
+    await db.commit()
+
+    token = create_access_token(user_id=user.id, email=user.email)
     return AuthTokenResponse(
         access_token=token,
-        user_id=new_user.id,
-        email=new_user.email,
-        name=new_user.name
+        user_id=user.id,
+        email=user.email,
+        name=user.name,
+        username=user.username
     )
+
+@router.post("/resend-code")
+async def resend_user_code(req: ResendCodeRequest, db: AsyncSession = Depends(get_db)):
+    """Generate and send fresh 6-digit verification code to user email."""
+    clean_email = req.email.lower().strip()
+    stmt = select(User).where(User.email == clean_email)
+    user = (await db.execute(stmt)).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="Account not found.")
+
+    if user.is_verified:
+        return {"status": "already_verified", "message": "Account is already verified. You can sign in directly."}
+
+    code = generate_verification_code()
+    user.verification_code = code
+    user.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+    await db.commit()
+
+    email_res = await send_verification_email(clean_email, user.username or user.name, code)
+    return {
+        "status": "success",
+        "message": f"A new verification code was sent to {clean_email}.",
+        "dev_code": email_res.get("dev_code")
+    }
 
 @router.post("/login", response_model=AuthTokenResponse)
 async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Sign in with email and password."""
-    stmt = select(User).where(User.email == req.email.lower().strip())
+    """Sign in with email (or username) and password."""
+    clean_id = req.email.lower().strip()
+    stmt = select(User).where(or_(User.email == clean_id, User.username == clean_id))
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
+        raise HTTPException(status_code=401, detail="Invalid email/username or password.")
 
-    token = create_access_token(user_id=user.id, email=user.email)
-    return AuthTokenResponse(
-        access_token=token,
-        user_id=user.id,
-        email=user.email,
-        name=user.name
-    )
-
-@router.post("/oauth-mock", response_model=AuthTokenResponse)
-async def oauth_mock_signin(req: OAuthDemoRequest, db: AsyncSession = Depends(get_db)):
-    """Account authentication for OAuth providers. Requires real email."""
-    if not req.email or not req.email.strip():
-        raise HTTPException(status_code=400, detail="Please provide a valid email address.")
-
-    provider = req.provider.lower()
-    email = req.email.lower().strip()
-    name = req.name or email.split("@")[0].capitalize()
-
-    # Find or create
-    stmt = select(User).where(User.email == email)
-    user = (await db.execute(stmt)).scalar_one_or_none()
-    if not user:
-        user = User(
-            email=email,
-            name=name,
-            auth_provider=provider
-        )
-        db.add(user)
+    if not user.is_verified:
+        # Generate new verification code and email it
+        code = generate_verification_code()
+        user.verification_code = code
+        user.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
         await db.commit()
-        await db.refresh(user)
+        email_res = await send_verification_email(user.email, user.username or user.name, code)
+        raise HTTPException(
+            status_code=403,
+            detail=f"Please verify your account first. A 6-digit code was sent to your email. (Dev code: {email_res.get('dev_code') or ''})"
+        )
 
     token = create_access_token(user_id=user.id, email=user.email)
     return AuthTokenResponse(
         access_token=token,
         user_id=user.id,
         email=user.email,
-        name=user.name
+        name=user.name,
+        username=user.username
     )
 
 @router.get("/me", response_model=UserProfileResponse)
@@ -164,7 +254,9 @@ async def get_current_profile(user: User = Depends(get_current_user_required)):
     return UserProfileResponse(
         id=user.id,
         email=user.email,
+        username=user.username,
         name=user.name,
+        is_verified=bool(user.is_verified if user.is_verified is not None else True),
         auth_provider=user.auth_provider or "local",
         selected_model=user.selected_model or "openai/gpt-oss-20b",
         theme_pref=user.theme_pref or "emerald",

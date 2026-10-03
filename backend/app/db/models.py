@@ -11,9 +11,13 @@ class User(Base):
 
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     email = Column(String(255), unique=True, index=True, nullable=False)
+    username = Column(String(100), unique=True, index=True, nullable=True)
     name = Column(String(255), nullable=False, default="Researcher")
     password_hash = Column(String(255), nullable=True)
-    auth_provider = Column(String(50), default="local") # "local", "google", "apple", "demo"
+    is_verified = Column(Boolean, default=False)
+    verification_code = Column(String(10), nullable=True)
+    code_expires_at = Column(DateTime, nullable=True)
+    auth_provider = Column(String(50), default="local")
 
     # Encrypted BYOK Keys
     groq_key_encrypted = Column(Text, nullable=True)

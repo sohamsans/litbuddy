@@ -32,9 +32,10 @@ interface AuthContextType {
   setRuntimeKey: (provider: string, key: string) => void;
 
   // Actions
-  loginWithEmail: (email: string, pass: string) => Promise<void>;
-  registerWithEmail: (email: string, pass: string, name?: string) => Promise<void>;
-  loginOAuthMock: (provider: 'google' | 'apple' | 'demo', email?: string, name?: string) => Promise<void>;
+  loginWithEmail: (identifier: string, pass: string) => Promise<void>;
+  registerWithEmail: (username: string, email: string, pass: string, name?: string) => Promise<{ status: string; email: string; message: string; dev_code?: string }>;
+  verifyAccountCode: (email: string, code: string) => Promise<void>;
+  resendAccountCode: (email: string) => Promise<{ status: string; message: string; dev_code?: string }>;
   logout: () => void;
   saveBYOKKeys: (keys: Record<string, any>) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -113,25 +114,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('autolit_active_model', activeModel);
   }, [activeModel]);
 
-  const loginWithEmail = async (email: string, pass: string) => {
-    const res = await api.login(email, pass);
+  const loginWithEmail = async (identifier: string, pass: string) => {
+    const res = await api.login(identifier, pass);
     localStorage.setItem('autolit_auth_token', res.access_token);
     setToken(res.access_token);
     setIsAuthModalOpen(false);
   };
 
-  const registerWithEmail = async (email: string, pass: string, name?: string) => {
-    const res = await api.register(email, pass, name);
+  const registerWithEmail = async (username: string, email: string, pass: string, name?: string) => {
+    return await api.register(username, email, pass, name);
+  };
+
+  const verifyAccountCode = async (email: string, code: string) => {
+    const res = await api.verifyCode(email, code);
     localStorage.setItem('autolit_auth_token', res.access_token);
     setToken(res.access_token);
     setIsAuthModalOpen(false);
   };
 
-  const loginOAuthMock = async (provider: 'google' | 'apple' | 'demo', email?: string, name?: string) => {
-    const res = await api.oauthMock(provider, email, name);
-    localStorage.setItem('autolit_auth_token', res.access_token);
-    setToken(res.access_token);
-    setIsAuthModalOpen(false);
+  const resendAccountCode = async (email: string) => {
+    return await api.resendCode(email);
   };
 
   const logout = () => {
@@ -179,7 +181,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRuntimeKey,
         loginWithEmail,
         registerWithEmail,
-        loginOAuthMock,
+        verifyAccountCode,
+        resendAccountCode,
         logout,
         saveBYOKKeys,
         refreshProfile

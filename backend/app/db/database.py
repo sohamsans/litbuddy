@@ -37,6 +37,14 @@ async def init_db():
                         sync_conn.execute(text("ALTER TABLE users ADD COLUMN save_chat_history BOOLEAN DEFAULT 1"))
                     if "contribute_public_cache" not in user_cols:
                         sync_conn.execute(text("ALTER TABLE users ADD COLUMN contribute_public_cache BOOLEAN DEFAULT 1"))
+                    if "username" not in user_cols:
+                        sync_conn.execute(text("ALTER TABLE users ADD COLUMN username TEXT NULL"))
+                    if "is_verified" not in user_cols:
+                        sync_conn.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0"))
+                    if "verification_code" not in user_cols:
+                        sync_conn.execute(text("ALTER TABLE users ADD COLUMN verification_code TEXT NULL"))
+                    if "code_expires_at" not in user_cols:
+                        sync_conn.execute(text("ALTER TABLE users ADD COLUMN code_expires_at DATETIME NULL"))
             except Exception as e:
                 print(f"[DB Auto-Migration Warning] {e}")
 
