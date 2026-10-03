@@ -164,7 +164,6 @@ class RegistrationResponse(BaseModel):
     status: str
     email: str
     message: str
-    dev_code: Optional[str] = None
 
 class UserLoginRequest(BaseModel):
     email: str

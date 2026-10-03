@@ -1,60 +1,30 @@
 import os
 import smtplib
 import secrets
+import httpx
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime, timedelta, timezone
-from typing import Tuple, Optional, Dict, Any
+from datetime import datetime, timezone
+from typing import Dict, Any
 
 def generate_verification_code() -> str:
     """Generate secure 6-digit numeric verification code."""
     return str(secrets.randbelow(900000) + 100000)
 
-async def send_verification_email(to_email: str, username: str, code: str) -> Dict[str, Any]:
-    """
-    Send verification email containing 6-digit code.
-    If SMTP credentials are provided (SMTP_HOST, SMTP_USER, SMTP_PASSWORD),
-    sends via SMTP server. If unconfigured, falls back to logging.
-    """
-    smtp_host = os.getenv("SMTP_HOST")
-    smtp_port = int(os.getenv("SMTP_PORT", "587"))
-    smtp_user = os.getenv("SMTP_USER")
-    smtp_pass = os.getenv("SMTP_PASSWORD")
-    smtp_from = os.getenv("SMTP_FROM", smtp_user or "no-reply@litbuddy.ai")
-
-    print(f"\n==================================================")
-    print(f"[LitBuddy Email Verification]")
-    print(f"To: {to_email} (User: {username})")
-    print(f"Verification Code: {code}")
-    print(f"Expires: 15 minutes")
-    print(f"==================================================\n")
-
-    if not smtp_host or not smtp_user or not smtp_pass:
-        return {
-            "sent": False,
-            "dev_code": code,
-            "message": f"Verification code generated: {code} (SMTP unconfigured; check console or dev code)"
-        }
-
-    try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"Your LitBuddy Verification Code: {code}"
-        msg["From"] = smtp_from
-        msg["To"] = to_email
-
-        text_content = f"""Hi {username},
+def _build_email_contents(username: str, code: str) -> tuple[str, str]:
+    text_content = f"""Hi {username},
 
 Welcome to LitBuddy! Your 6-digit account verification code is:
 
 {code}
 
 This code will expire in 15 minutes.
-If you did not request this account, please ignore this message.
+If you did not request this account, please ignore this email.
 
 — LitBuddy Team
 """
 
-        html_content = f"""<!DOCTYPE html>
+    html_content = f"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -88,31 +58,87 @@ If you did not request this account, please ignore this message.
   </div>
 </body>
 </html>"""
+    return text_content, html_content
 
-        part1 = MIMEText(text_content, "plain")
-        part2 = MIMEText(html_content, "html")
-        msg.attach(part1)
-        msg.attach(part2)
+async def send_verification_email(to_email: str, username: str, code: str) -> Dict[str, Any]:
+    """
+    Send verification email containing the 6-digit code directly to user's inbox.
+    Supports:
+    1. Resend API (RESEND_API_KEY) - Fast HTTP email API (100 free emails/day)
+    2. Standard SMTP (Gmail App Password, Brevo, SendGrid, etc.)
+    """
+    text_content, html_content = _build_email_contents(username, code)
+    subject = f"Your LitBuddy Verification Code: {code}"
 
-        if smtp_port == 465:
-            server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=10)
-        else:
-            server = smtplib.SMTP(smtp_host, smtp_port, timeout=10)
-            server.starttls()
+    # Method 1: Resend HTTP API (Fastest and highest delivery rate)
+    resend_api_key = os.getenv("RESEND_API_KEY")
+    if resend_api_key and resend_api_key.startswith("re_"):
+        try:
+            from_email = os.getenv("EMAIL_FROM", "LitBuddy <onboarding@resend.dev>")
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(
+                    "https://api.resend.com/emails",
+                    headers={
+                        "Authorization": f"Bearer {resend_api_key}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "from": from_email,
+                        "to": [to_email],
+                        "subject": subject,
+                        "html": html_content,
+                        "text": text_content
+                    }
+                )
+                if res.status_code in (200, 201):
+                    return {"sent": True, "message": f"Verification email sent to {to_email}"}
+                else:
+                    err_json = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+                    err_msg = err_json.get("message", res.text)
+                    print(f"[Resend API Error] {res.status_code}: {err_msg}")
+                    return {"sent": False, "error": f"Resend API error: {err_msg}"}
+        except Exception as e:
+            print(f"[Resend Dispatch Exception] {e}")
+            return {"sent": False, "error": str(e)}
 
-        server.login(smtp_user, smtp_pass)
-        server.sendmail(smtp_from, [to_email], msg.as_string())
-        server.quit()
+    # Method 2: Standard SMTP (Gmail, Brevo, custom mail server)
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASSWORD")
 
-        return {
-            "sent": True,
-            "message": f"Verification code sent to {to_email}"
-        }
-    except Exception as e:
-        print(f"[SMTP Send Error] {e}")
-        return {
-            "sent": False,
-            "dev_code": code,
-            "error": str(e),
-            "message": f"Could not deliver email: {str(e)}. (Dev code: {code})"
-        }
+    if smtp_host and smtp_user and smtp_pass:
+        try:
+            smtp_port = int(os.getenv("SMTP_PORT", "587"))
+            smtp_from = os.getenv("SMTP_FROM", smtp_user)
+
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = smtp_from
+            msg["To"] = to_email
+
+            part1 = MIMEText(text_content, "plain")
+            part2 = MIMEText(html_content, "html")
+            msg.attach(part1)
+            msg.attach(part2)
+
+            if smtp_port == 465:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, timeout=12)
+            else:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=12)
+                server.starttls()
+
+            server.login(smtp_user, smtp_pass)
+            server.sendmail(smtp_from, [to_email], msg.as_string())
+            server.quit()
+
+            return {"sent": True, "message": f"Verification email sent to {to_email}"}
+        except Exception as e:
+            print(f"[SMTP Send Error] {e}")
+            return {"sent": False, "error": f"SMTP delivery failed: {str(e)}"}
+
+    # If neither is configured
+    print(f"\n[ALERT] No email provider configured! Set RESEND_API_KEY or SMTP_HOST/USER/PASSWORD in environment.")
+    return {
+        "sent": False,
+        "error": "Email service is not configured on the backend. Please configure RESEND_API_KEY or SMTP credentials."
+    }

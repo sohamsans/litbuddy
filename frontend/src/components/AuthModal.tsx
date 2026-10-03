@@ -25,7 +25,6 @@ export const AuthModal: React.FC = () => {
   // Status & Feedback
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [devCode, setDevCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
 
@@ -34,7 +33,6 @@ export const AuthModal: React.FC = () => {
   const resetForm = () => {
     setError(null);
     setSuccessMsg(null);
-    setDevCode(null);
     setVerificationCode('');
     setStep('form');
   };
@@ -56,10 +54,7 @@ export const AuthModal: React.FC = () => {
         throw new Error('Password must be at least 6 characters.');
       }
 
-      const res = await registerWithEmail(cleanUser, cleanEmail, password, cleanUser);
-      if (res.dev_code) {
-        setDevCode(res.dev_code);
-      }
+      await registerWithEmail(cleanUser, cleanEmail, password, cleanUser);
       setSuccessMsg(`A 6-digit verification code was sent to ${cleanEmail}`);
       setStep('verify');
     } catch (err: any) {
@@ -98,11 +93,6 @@ export const AuthModal: React.FC = () => {
     } catch (err: any) {
       const msg = err.message || 'Login failed.';
       if (msg.toLowerCase().includes('verify your account first')) {
-        // Extract dev code if present
-        const match = msg.match(/Dev code:\s*(\d+)/i);
-        if (match) {
-          setDevCode(match[1]);
-        }
         setSuccessMsg(`Please enter the 6-digit code sent to ${email}`);
         setStep('verify');
       } else {
@@ -117,10 +107,7 @@ export const AuthModal: React.FC = () => {
     setIsResending(true);
     setError(null);
     try {
-      const res = await resendAccountCode(email.trim().toLowerCase());
-      if (res.dev_code) {
-        setDevCode(res.dev_code);
-      }
+      await resendAccountCode(email.trim().toLowerCase());
       setSuccessMsg(`A fresh verification code was sent to ${email}`);
     } catch (err: any) {
       setError(err.message || 'Failed to resend code.');
@@ -211,23 +198,6 @@ export const AuthModal: React.FC = () => {
           <div className="mb-4 p-3 rounded-xl bg-[#81c995]/10 border border-[#81c995]/30 text-[#81c995] text-xs flex items-center gap-2 animate-fadeIn">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMsg}</span>
-          </div>
-        )}
-
-        {/* Dev Code Banner (If SMTP unconfigured in dev/local) */}
-        {devCode && (
-          <div className="mb-4 p-3 rounded-xl bg-[#8ab4f8]/10 border border-[#8ab4f8]/40 text-[#8ab4f8] text-xs flex items-center justify-between">
-            <div>
-              <span className="font-semibold">Verification Code: </span>
-              <span className="font-mono text-sm font-bold tracking-widest">{devCode}</span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setVerificationCode(devCode)}
-              className="px-2 py-0.5 rounded bg-[#8ab4f8] text-[#131314] text-[11px] font-semibold hover:bg-[#8ab4f8]/90"
-            >
-              Autofill
-            </button>
           </div>
         )}
 

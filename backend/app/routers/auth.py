@@ -100,11 +100,15 @@ async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get
             existing.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
             await db.commit()
             email_res = await send_verification_email(clean_email, clean_username, code)
+            if not email_res.get("sent"):
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to deliver verification email. Error: {email_res.get('error', 'Email service unavailable')}. Please contact support or configure SMTP/Resend."
+                )
             return RegistrationResponse(
                 status="pending_verification",
                 email=clean_email,
-                message="A 6-digit verification code has been sent to your email.",
-                dev_code=email_res.get("dev_code")
+                message=f"A 6-digit verification code has been sent to {clean_email}."
             )
 
     code = generate_verification_code()
@@ -123,11 +127,16 @@ async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get
     await db.commit()
 
     email_res = await send_verification_email(clean_email, clean_username, code)
+    if not email_res.get("sent"):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to deliver verification email. Error: {email_res.get('error', 'Email service unavailable')}. Please configure SMTP/Resend on server."
+        )
+
     return RegistrationResponse(
         status="pending_verification",
         email=clean_email,
-        message="A 6-digit verification code has been sent to your email.",
-        dev_code=email_res.get("dev_code")
+        message=f"A 6-digit verification code has been sent to {clean_email}."
     )
 
 @router.post("/verify-code", response_model=AuthTokenResponse)
@@ -194,10 +203,15 @@ async def resend_user_code(req: ResendCodeRequest, db: AsyncSession = Depends(ge
     await db.commit()
 
     email_res = await send_verification_email(clean_email, user.username or user.name, code)
+    if not email_res.get("sent"):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to deliver verification email. Error: {email_res.get('error', 'Email service unavailable')}. Please try again later."
+        )
+
     return {
         "status": "success",
-        "message": f"A new verification code was sent to {clean_email}.",
-        "dev_code": email_res.get("dev_code")
+        "message": f"A new verification code was sent to {clean_email}."
     }
 
 @router.post("/login", response_model=AuthTokenResponse)
@@ -216,9 +230,14 @@ async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
         user.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
         await db.commit()
         email_res = await send_verification_email(user.email, user.username or user.name, code)
+        if not email_res.get("sent"):
+            raise HTTPException(
+                status_code=403,
+                detail="Your account is not verified yet. We tried to email a verification code, but delivery failed. Please check back shortly."
+            )
         raise HTTPException(
             status_code=403,
-            detail=f"Please verify your account first. A 6-digit code was sent to your email. (Dev code: {email_res.get('dev_code') or ''})"
+            detail=f"Please verify your account first. A 6-digit code has been sent to your email."
         )
 
     token = create_access_token(user_id=user.id, email=user.email)

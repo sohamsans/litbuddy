@@ -160,7 +160,7 @@ export async function verifyCode(email: string, code: string): Promise<{ access_
   return res.json();
 }
 
-export async function resendCode(email: string): Promise<{ status: string; message: string; dev_code?: string }> {
+export async function resendCode(email: string): Promise<{ status: string; message: string }> {
   const res = await fetch(`${API_BASE}/auth/resend-code`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
