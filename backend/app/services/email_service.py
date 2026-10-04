@@ -70,7 +70,40 @@ async def send_verification_email(to_email: str, username: str, code: str) -> Di
     text_content, html_content = _build_email_contents(username, code)
     subject = f"Your LitBuddy Verification Code: {code}"
 
-    # Method 1: Resend HTTP API (Fastest and highest delivery rate)
+    # Method 1: Brevo HTTP REST API (300 free emails/day to ANY recipient, no domain lock)
+    brevo_api_key = os.getenv("BREVO_API_KEY")
+    if brevo_api_key:
+        try:
+            sender_email = os.getenv("BREVO_SENDER_EMAIL") or os.getenv("EMAIL_FROM") or "noreply@litbuddy.app"
+            sender_name = os.getenv("BREVO_SENDER_NAME", "LitBuddy")
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.post(
+                    "https://api.brevo.com/v3/smtp/email",
+                    headers={
+                        "api-key": brevo_api_key,
+                        "Content-Type": "application/json",
+                        "Accept": "application/json"
+                    },
+                    json={
+                        "sender": {"name": sender_name, "email": sender_email},
+                        "to": [{"email": to_email, "name": username}],
+                        "subject": subject,
+                        "htmlContent": html_content,
+                        "textContent": text_content
+                    }
+                )
+                if res.status_code in (200, 201):
+                    return {"sent": True, "message": f"Verification email sent to {to_email}"}
+                else:
+                    err_json = res.json() if res.headers.get("content-type", "").startswith("application/json") else {}
+                    err_msg = err_json.get("message", res.text)
+                    print(f"[Brevo API Error] {res.status_code}: {err_msg}")
+                    return {"sent": False, "error": f"Brevo API error: {err_msg}"}
+        except Exception as e:
+            print(f"[Brevo Dispatch Exception] {e}")
+            return {"sent": False, "error": str(e)}
+
+    # Method 2: Resend HTTP API (Fast HTTP email API)
     resend_api_key = os.getenv("RESEND_API_KEY")
     if resend_api_key and resend_api_key.startswith("re_"):
         try:
@@ -101,7 +134,7 @@ async def send_verification_email(to_email: str, username: str, code: str) -> Di
             print(f"[Resend Dispatch Exception] {e}")
             return {"sent": False, "error": str(e)}
 
-    # Method 2: Standard SMTP (Gmail, Brevo, custom mail server)
+    # Method 3: Standard SMTP (Gmail, Brevo, custom mail server)
     smtp_host = os.getenv("SMTP_HOST")
     smtp_user = os.getenv("SMTP_USER")
     smtp_pass = os.getenv("SMTP_PASSWORD")
