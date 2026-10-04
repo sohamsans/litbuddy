@@ -141,11 +141,11 @@ async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get
 
 @router.post("/verify-code", response_model=AuthTokenResponse)
 async def verify_user_code(req: VerifyCodeRequest, db: AsyncSession = Depends(get_db)):
-    """Verify 6-digit email code and issue permanent session token."""
-    clean_email = req.email.lower().strip()
+    """Verify 6-digit email code and issue permanent session token (accepts email or username)."""
+    clean_id = req.email.lower().strip()
     clean_code = req.code.strip()
 
-    stmt = select(User).where(User.email == clean_email)
+    stmt = select(User).where(or_(User.email == clean_id, User.username == clean_id))
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Account not found. Please create an account.")
@@ -187,9 +187,9 @@ async def verify_user_code(req: VerifyCodeRequest, db: AsyncSession = Depends(ge
 
 @router.post("/resend-code")
 async def resend_user_code(req: ResendCodeRequest, db: AsyncSession = Depends(get_db)):
-    """Generate and send fresh 6-digit verification code to user email."""
-    clean_email = req.email.lower().strip()
-    stmt = select(User).where(User.email == clean_email)
+    """Generate and send fresh 6-digit verification code to user email (accepts email or username)."""
+    clean_id = req.email.lower().strip()
+    stmt = select(User).where(or_(User.email == clean_id, User.username == clean_id))
     user = (await db.execute(stmt)).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Account not found.")
@@ -202,7 +202,7 @@ async def resend_user_code(req: ResendCodeRequest, db: AsyncSession = Depends(ge
     user.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
     await db.commit()
 
-    email_res = await send_verification_email(clean_email, user.username or user.name, code)
+    email_res = await send_verification_email(user.email, user.username or user.name, code)
     if not email_res.get("sent"):
         raise HTTPException(
             status_code=500,
@@ -211,7 +211,8 @@ async def resend_user_code(req: ResendCodeRequest, db: AsyncSession = Depends(ge
 
     return {
         "status": "success",
-        "message": f"A new verification code was sent to {clean_email}."
+        "email": user.email,
+        "message": f"A new verification code was sent to {user.email}."
     }
 
 @router.post("/login", response_model=AuthTokenResponse)

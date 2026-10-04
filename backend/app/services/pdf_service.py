@@ -1,6 +1,12 @@
 from typing import Optional, Tuple
 import httpx
-import pymupdf
+try:
+    import pymupdf
+except ImportError:
+    try:
+        import fitz as pymupdf
+    except ImportError:
+        pymupdf = None
 from app.config import get_settings
 
 async def resolve_unpaywall_pdf(doi: str, client: Optional[httpx.AsyncClient] = None) -> Optional[str]:
@@ -59,7 +65,8 @@ async def download_pdf_stream(pdf_url: str, max_bytes: int = 25 * 1024 * 1024) -
         return None
 
 def extract_pdf_sections(pdf_bytes: bytes, max_chars: int = 12000) -> str:
-    """Extract introduction (first 2 pages) and conclusion/discussion (last 2 pages) via PyMuPDF."""
+    if not pymupdf:
+        return ""
     try:
         doc = pymupdf.open(stream=pdf_bytes, filetype="pdf")
         total_pages = len(doc)

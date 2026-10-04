@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { ReviewPaper, RawPaperMetadata, AssistantChatMessage } from '../types';
 import { LatexRenderer } from './LatexRenderer';
-import { sendPaperQA } from '../services/api';
+import { sendPaperQA, api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 
 interface PaperChatAreaProps {
@@ -52,28 +52,48 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
       .trim() || topic;
   }, [topic]);
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => [
-    {
-      id: 'init-1',
-      role: 'assistant',
-      content: `I've analyzed and synthesized the literature collection for **${cleanTopic}**.\n\nYou can ask deep questions about methodologies, compare empirical findings, check limitations, or inspect mathematical models. Formulas will be compiled using KaTeX (e.g. $E = mc^2$, $\\mathcal{L}_{\\text{loss}}$).`,
-      suggestedFollowups: [
-        'Explain the core methodology and findings of paper #1.',
-        'Compare the empirical benchmarks across the synthesized papers.',
-        'What are the primary theoretical limitations and research gaps?'
-      ],
-      suggestedSearches: [
-        `${cleanTopic.slice(0, 40)} benchmarks`,
-        `${cleanTopic.slice(0, 40)} state of the art`
-      ],
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  // Deterministic local storage key for this specific research topic
+  const storageKey = useMemo(() => {
+    const norm = cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 80);
+    return `litbuddy_paper_chat_${norm}`;
+  }, [cleanTopic]);
+
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const norm = cleanTopic.toLowerCase().replace(/[^a-z0-9]/g, '_').slice(0, 80);
+      const cached = localStorage.getItem(`litbuddy_paper_chat_${norm}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load chat from localStorage:', e);
     }
-  ]);
+    return [
+      {
+        id: 'init-1',
+        role: 'assistant',
+        content: `I've analyzed and synthesized the literature collection for **${cleanTopic}**.\n\nYou can ask deep questions about methodologies, compare empirical findings, check limitations, or inspect mathematical models. Formulas will be compiled using KaTeX (e.g. $E = mc^2$, $\\mathcal{L}_{\\text{loss}}$).`,
+        suggestedFollowups: [
+          'Explain the core methodology and findings of paper #1.',
+          'Compare the empirical benchmarks across the synthesized papers.',
+          'What are the primary theoretical limitations and research gaps?'
+        ],
+        suggestedSearches: [
+          `${cleanTopic.slice(0, 40)} benchmarks`,
+          `${cleanTopic.slice(0, 40)} state of the art`
+        ],
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    ];
+  });
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { activeProvider, activeModel, runtimeKeys } = useAuth();
+  const { activeProvider, activeModel, runtimeKeys, token, isAuthenticated } = useAuth();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -82,6 +102,17 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  // Synchronize conversation to localStorage whenever messages update
+  useEffect(() => {
+    try {
+      if (messages.length > 0) {
+        localStorage.setItem(storageKey, JSON.stringify(messages));
+      }
+    } catch (e) {
+      console.warn('Failed to persist chat:', e);
+    }
+  }, [messages, storageKey]);
 
   const handleSendMessage = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
@@ -133,6 +164,19 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
       };
 
       setMessages((prev) => [...prev, assistantMsg]);
+
+      // Synchronize with cloud history when authenticated
+      if (token && isAuthenticated) {
+        const fullPayload: AssistantChatMessage[] = [...messages, userMsg, assistantMsg].map((m) => ({
+          role: m.role,
+          content: m.content
+        }));
+        api.saveChatHistory(
+          token,
+          `[Literature Q&A] ${cleanTopic.slice(0, 35)}`,
+          fullPayload
+        ).catch(() => {});
+      }
     } catch (err: any) {
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
@@ -147,19 +191,23 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
   };
 
   const handleClearChat = () => {
-    setMessages([
-      {
+    if (window.confirm(`Are you sure you want to clear this conversation? Your synthesized literature review and vault documents will remain saved.`)) {
+      const resetMsg: ChatMessage = {
         id: `init-${Date.now()}`,
         role: 'assistant',
-        content: `Conversation reset. I am ready for new questions regarding **${topic}**.\n\nAll ${synthesizedPapers.length} grounded papers, figures, and citations remain fully cached and accessible.`,
+        content: `Conversation reset. I am ready for new questions regarding **${cleanTopic}**.\n\nAll ${synthesizedPapers.length} grounded papers, figures, and citations remain fully cached and accessible.`,
         suggestedFollowups: [
           'What are the primary theoretical limitations identified across these papers?',
           'Compare the empirical benchmarks and methodologies used [1, 2].',
           'Summarize the key mathematical formulations or loss functions.'
         ],
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ]);
+      };
+      setMessages([resetMsg]);
+      try {
+        localStorage.removeItem(storageKey);
+      } catch {}
+    }
   };
 
   const dedupedMessages = useMemo(() => {

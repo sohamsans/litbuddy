@@ -73,7 +73,48 @@ const MainLayout: React.FC = () => {
     if (!localStorage.getItem('litbuddy_tour_completed')) {
       setIsTourOpen(true);
     }
+
+    // Restore active review session across page refreshes
+    try {
+      const saved = localStorage.getItem('litbuddy_active_session');
+      if (saved) {
+        const data = JSON.parse(saved);
+        if (data.currentTopic) setCurrentTopic(data.currentTopic);
+        if (data.searchOffset) setSearchOffset(data.searchOffset);
+        if (data.discoveredPapers) setDiscoveredPapers(data.discoveredPapers);
+        if (data.selectedPaperIds) setSelectedPaperIds(new Set(data.selectedPaperIds));
+        if (data.reviewResults) {
+          setReviewResults(data.reviewResults);
+          setStage('completed');
+          setIsSourcesSidebarOpen(true);
+        }
+        if (data.viewMode) setViewMode(data.viewMode);
+        if (data.mainTab) setMainTab(data.mainTab);
+      }
+    } catch (e) {
+      console.warn('Failed to restore active session:', e);
+    }
   }, []);
+
+  // Persist active review session whenever relevant state changes
+  useEffect(() => {
+    if (currentTopic || reviewResults || discoveredPapers.length > 0) {
+      try {
+        const session = {
+          currentTopic,
+          searchOffset,
+          discoveredPapers,
+          selectedPaperIds: Array.from(selectedPaperIds),
+          reviewResults,
+          viewMode,
+          mainTab
+        };
+        localStorage.setItem('litbuddy_active_session', JSON.stringify(session));
+      } catch (e) {
+        console.warn('Failed to persist active session:', e);
+      }
+    }
+  }, [currentTopic, searchOffset, discoveredPapers, selectedPaperIds, reviewResults, viewMode, mainTab]);
 
   const handleSearch = async (
     params: {
@@ -164,6 +205,10 @@ const MainLayout: React.FC = () => {
         setStage('completed');
         setViewMode('chat');
         setIsSourcesSidebarOpen(true);
+        try {
+          const norm = response.topic.toLowerCase().trim();
+          localStorage.setItem(`litbuddy_saved_review_${norm}`, JSON.stringify(response));
+        } catch {}
       } catch (err: any) {
         setStage('error');
         setError(err.message || 'Pipeline execution failed.');
@@ -202,6 +247,10 @@ const MainLayout: React.FC = () => {
       setStage('completed');
       setViewMode('chat');
       setIsSourcesSidebarOpen(true);
+      try {
+        const norm = response.topic.toLowerCase().trim();
+        localStorage.setItem(`litbuddy_saved_review_${norm}`, JSON.stringify(response));
+      } catch {}
     } catch (err: any) {
       setStage('error');
       setError(err.message || 'Synthesis failed.');
@@ -233,6 +282,10 @@ const MainLayout: React.FC = () => {
     setReviewResults(null);
     setError(null);
     setStage('idle');
+    setViewMode('matrix');
+    try {
+      localStorage.removeItem('litbuddy_active_session');
+    } catch {}
   };
 
   return (
@@ -244,6 +297,20 @@ const MainLayout: React.FC = () => {
         onNewReview={resetToNewReview}
         onSelectTopic={(topic) => {
           setCurrentTopic(topic);
+          const norm = topic.toLowerCase().trim();
+          try {
+            const cached = localStorage.getItem(`litbuddy_saved_review_${norm}`);
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (parsed && parsed.papers && parsed.papers.length > 0) {
+                setReviewResults(parsed);
+                setStage('completed');
+                setViewMode('chat');
+                setIsSourcesSidebarOpen(true);
+                return;
+              }
+            }
+          } catch {}
           handleSearch({
             topic,
             maxResults: 50,

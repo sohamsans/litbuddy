@@ -1,6 +1,12 @@
 import os
 import json
-import pymupdf
+try:
+    import pymupdf
+except ImportError:
+    try:
+        import fitz as pymupdf
+    except ImportError:
+        pymupdf = None
 from typing import Dict, List, Any, Tuple
 from sqlalchemy import select
 from app.db.database import AsyncSessionLocal
@@ -21,7 +27,7 @@ FIGURES_DIR = _get_figures_dir()
 
 def extract_pdf_layout_and_figures(pdf_path: str, vault_id: str, max_figures: int = 6) -> Dict[str, Any]:
     """Parse full text sections and extract high-resolution diagram/figure PNGs using PyMuPDF."""
-    if not os.path.exists(pdf_path):
+    if not os.path.exists(pdf_path) or not pymupdf:
         return {"fulltext": "", "figures": [], "sections": {}}
 
     try:

@@ -18,7 +18,8 @@ import {
 } from 'lucide-react';
 import { ReviewPaper, RawPaperMetadata } from '../types';
 import { TagBadge } from './TagBadge';
-import { vaultSinglePaper, batchVaultPapers } from '../services/api';
+import { vaultSinglePaper, batchVaultPapers, getVaultDownloadUrl, bulkDownloadPapers } from '../services/api';
+import { VaultPaperItem } from '../types';
 
 interface SourcesSidebarProps {
   isOpen: boolean;
@@ -115,7 +116,7 @@ export const SourcesSidebar: React.FC<SourcesSidebarProps> = ({
     }
   };
 
-  // Single in-app download directly into LitBuddy Papers
+  // Single download: archives in vault AND triggers direct browser download to user's device
   const handleDownloadSingle = async (e: React.MouseEvent, p: ReviewPaper | RawPaperMetadata) => {
     e.stopPropagation();
     setDownloadingId(p.id);
@@ -123,33 +124,68 @@ export const SourcesSidebar: React.FC<SourcesSidebarProps> = ({
       const res = await vaultSinglePaper(p);
       if (res.vault_id) {
         setVaultedMap((prev) => ({ ...prev, [p.id]: res.vault_id }));
-        showToast(`Saved to LitBuddy Papers`);
+        // Trigger browser file download
+        const downloadUrl = getVaultDownloadUrl(res.vault_id);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.setAttribute('download', `${p.title.slice(0, 50)}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        showToast(`Downloading "${p.title.slice(0, 30)}..." to your device`);
       }
     } catch (err: any) {
-      alert(err.message || 'Failed to download paper.');
+      // Graceful fallback: If publisher paywalled/blocked, open direct publisher or OA landing
+      const fallbackUrl = (p as any).doi_link || ((p as any).doi ? `https://doi.org/${(p as any).doi}` : (p as any).pdf_url);
+      if (fallbackUrl) {
+        window.open(fallbackUrl, '_blank', 'noopener,noreferrer');
+        showToast('Direct PDF restricted. Opening external publication source...');
+      } else {
+        showToast(err.message || 'Direct PDF restricted by publisher.');
+      }
     } finally {
       setDownloadingId(null);
     }
   };
 
-  // Bulk in-app download directly into LitBuddy Papers
+  // Direct download for already vaulted paper
+  const handleDownloadVaulted = (e: React.MouseEvent, vaultId: string, title: string) => {
+    e.stopPropagation();
+    const downloadUrl = getVaultDownloadUrl(vaultId);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.setAttribute('download', `${title.slice(0, 50)}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showToast(`Downloading "${title.slice(0, 30)}..."`);
+  };
+
+  // Bulk download selected: bundles into ZIP and downloads to user's device
   const handleBatchDownloadSelected = async () => {
     const papersToDownload = [...synthesizedPapers, ...candidatePool].filter((p) => selectedIds.has(p.id));
     if (papersToDownload.length === 0) return;
 
     setIsBatchDownloading(true);
     try {
-      const res = await batchVaultPapers(papersToDownload);
-      const newMap: Record<string, string> = {};
-      res.results.forEach((r) => {
-        if (r.status === 'success' && r.vault_id) {
-          newMap[r.id] = r.vault_id;
-        }
-      });
-      setVaultedMap((prev) => ({ ...prev, ...newMap }));
-      showToast(`Saved ${res.success} of ${res.total} papers into LitBuddy Papers`);
+      if (onBulkDownload) {
+        await onBulkDownload(papersToDownload);
+      } else {
+        const items: VaultPaperItem[] = papersToDownload.map((p) => ({
+          id: p.id,
+          title: p.title,
+          doi: (p as any).doi || ((p as any).doi_link ? (p as any).doi_link.replace(/^https?:\/\/doi\.org\//, '') : undefined),
+          pdf_url: (p as any).pdf_url,
+          source: (p as any).source,
+          authors: p.authors,
+          year: p.year,
+          venue: (p as any).venue,
+        }));
+        await bulkDownloadPapers(items);
+      }
+      showToast(`ZIP package downloaded with ${papersToDownload.length} papers`);
     } catch (err: any) {
-      alert(err.message || 'Batch download failed.');
+      showToast(err.message || 'Bulk ZIP download failed.');
     } finally {
       setIsBatchDownloading(false);
     }
@@ -357,14 +393,14 @@ export const SourcesSidebar: React.FC<SourcesSidebarProps> = ({
                   onClick={handleBatchDownloadSelected}
                   disabled={isBatchDownloading}
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-[#8ab4f8] text-[#131314] font-medium hover:bg-[#8ab4f8]/90 transition-colors disabled:opacity-50"
-                  title="Download selected into LitBuddy Papers folder"
+                  title="Download selected papers as ZIP archive to your device"
                 >
                   {isBatchDownloading ? (
                     <Loader2 className="w-3 h-3 animate-spin" />
                   ) : (
                     <Download className="w-3 h-3" />
                   )}
-                  <span>Save ({selectedIds.size}) to Papers</span>
+                  <span>Download ZIP ({selectedIds.size})</span>
                 </button>
               )}
             </div>
@@ -467,32 +503,42 @@ export const SourcesSidebar: React.FC<SourcesSidebarProps> = ({
 
                       <div className="ml-auto flex items-center gap-1">
                         {vaultId ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPdf?.(vaultId, paper.title);
-                            }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#8ab4f8]/20 text-[#8ab4f8] text-[10px] font-semibold hover:bg-[#8ab4f8]/30 transition-colors"
-                            title="Read vaulted PDF inside app"
-                          >
-                            <BookOpen className="w-3 h-3" />
-                            <span>Read PDF</span>
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPdf?.(vaultId, paper.title);
+                              }}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#8ab4f8]/20 text-[#8ab4f8] text-[10px] font-semibold hover:bg-[#8ab4f8]/30 transition-colors"
+                              title="Read vaulted PDF inside app"
+                            >
+                              <BookOpen className="w-3 h-3" />
+                              <span>Read</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDownloadVaulted(e, vaultId, paper.title)}
+                              className="p-1 rounded text-[#9aa0a6] hover:text-[#8ab4f8] hover:bg-[#3c4043] transition-colors"
+                              title="Download PDF to computer"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                          </>
                         ) : (
                           <button
                             type="button"
                             onClick={(e) => handleDownloadSingle(e, paper)}
                             disabled={downloadingId === paper.id}
-                            className="inline-flex items-center gap-1 text-[10px] text-[#8ab4f8] hover:underline disabled:opacity-40"
-                            title="Download and save into LitBuddy Papers"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#282a2c] text-[10px] text-[#8ab4f8] hover:bg-[#3c4043] border border-[#3c4043] disabled:opacity-40 transition-colors"
+                            title="Download PDF to your computer"
                           >
                             {downloadingId === paper.id ? (
                               <Loader2 className="w-2.5 h-2.5 animate-spin" />
                             ) : (
                               <Download className="w-2.5 h-2.5" />
                             )}
-                            <span>Save PDF</span>
+                            <span>Download PDF</span>
                           </button>
                         )}
                       </div>
@@ -553,32 +599,42 @@ export const SourcesSidebar: React.FC<SourcesSidebarProps> = ({
                         <TagBadge type={p.source} />
                         {p.is_oa && <TagBadge type="oa_pdf" />}
                         {vaultId ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onOpenPdf?.(vaultId, p.title);
-                            }}
-                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#8ab4f8]/20 text-[#8ab4f8] text-[10px] font-medium hover:bg-[#8ab4f8]/30 ml-1"
-                            title="Read in App"
-                          >
-                            <BookOpen className="w-2.5 h-2.5" />
-                            <span>Read</span>
-                          </button>
+                          <div className="flex items-center gap-1 ml-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPdf?.(vaultId, p.title);
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#8ab4f8]/20 text-[#8ab4f8] text-[10px] font-medium hover:bg-[#8ab4f8]/30 transition-colors"
+                              title="Read in App"
+                            >
+                              <BookOpen className="w-2.5 h-2.5" />
+                              <span>Read</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => handleDownloadVaulted(e, vaultId, p.title)}
+                              className="p-1 rounded text-[#9aa0a6] hover:text-[#8ab4f8] hover:bg-[#3c4043] transition-colors"
+                              title="Download PDF to computer"
+                            >
+                              <Download className="w-2.5 h-2.5" />
+                            </button>
+                          </div>
                         ) : (
                           <button
                             type="button"
                             onClick={(e) => handleDownloadSingle(e, p)}
                             disabled={downloadingId === p.id}
-                            className="inline-flex items-center gap-0.5 text-[10px] text-[#8ab4f8] hover:underline ml-1"
-                            title="Download PDF to LitBuddy Papers"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#282a2c] text-[10px] text-[#8ab4f8] hover:bg-[#3c4043] border border-[#3c4043] ml-1 disabled:opacity-40 transition-colors"
+                            title="Download PDF to computer"
                           >
                             {downloadingId === p.id ? (
                               <Loader2 className="w-2.5 h-2.5 animate-spin" />
                             ) : (
                               <Download className="w-2.5 h-2.5" />
                             )}
-                            <span>Save</span>
+                            <span>Download PDF</span>
                           </button>
                         )}
                       </div>

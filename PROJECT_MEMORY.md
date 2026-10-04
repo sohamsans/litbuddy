@@ -81,3 +81,24 @@
   - In-App PDF Viewer Modal (`PdfViewerModal.tsx`): Fullscreen viewer for instant 0ms reading of vaulted PDFs.
   - Interactive First-Run Onboarding Tutorial (`OnboardingTourModal.tsx`): 6-step guided walkthrough for first-time visitors with persistent replay button.
   - Zero-Knowledge Key Privacy: Sanitized `.env` credentials in production builds ensuring zero personal keys are leaked.
+- [x] Milestone 24 (LitBuddy v4.3): Bug Analysis and Fix Engine, State Persistence & Resilient Bulk Downloads:
+  - Full Chat State Persistence (`PaperChatArea.tsx` & `AssistantChatDrawer.tsx`): Conversations saved into deterministic `localStorage` topics and synchronized to cloud `/api/auth/history` when authenticated. Added explicit reset/clear confirmations.
+  - Active Review Session Continuity (`App.tsx`): Entire active review matrix, candidate pool, and selection state survive browser refresh (F5) and tab closures via `litbuddy_active_session`.
+  - Instant Review Replay (`Sidebar.tsx`): Clicking past reviews loads synthesis in 0ms directly from cached topic state without re-discovery roundtrips.
+  - Browser Direct PDF Downloader (`SourcesSidebar.tsx`): Single downloads vault to server and immediately trigger browser file download to user's computer, with graceful external publisher fallback if paywalled.
+  - Resilient Bulk ZIP Bundler (`bulk_download_service.py` & `SourcesSidebar.tsx`): Concurrent 6-worker download bounded by strict 18.0s overall deadline, completely eliminating Netlify 26s proxy 504 timeouts. Always bundles full `references.bib`, `manifest.json`, and all resolved PDFs.
+  - Unified Auth Identifier Resolution (`backend/app/routers/auth.py`): Email verification (`/api/auth/verify-code`) and resend (`/api/auth/resend-code`) transparently resolve users by either email OR username, eliminating the unverified account lock.
+
+## 4. Bug Register & Diagnostic Ledger
+
+| Bug ID | Domain | Symptom | Root Cause (reasons-to-error) | Status |
+|---|---|---|---|---|
+| **BUG-101** | Chat Persistence | Conversations in Paper Chat and Copilot wipe out upon browser refresh (F5). | React memory-only state (`useState`) without synchronization to `localStorage` or backend `/api/auth/history`. | **Verified & Fixed** |
+| **BUG-102** | Active Review Session | Active synthesized review matrix, discovered candidates, and topic reset to blank on refresh. | `reviewResults` and `discoveredPapers` not persisted in `localStorage` session state. | **Verified & Fixed** |
+| **BUG-103** | PDF Downloader | Single paper download in `SourcesSidebar` vaults PDF on server but does not download to user browser. | `handleDownloadSingle` calls `vaultSinglePaper` but never triggers browser download link / blob download. | **Verified & Fixed** |
+| **BUG-104** | Bulk Downloader | Bulk download in `SourcesSidebar` calls `batchVaultPapers` (server-only) instead of downloading ZIP. | UI action mismatch: server batch-vault called instead of browser-triggered ZIP download stream. | **Verified & Fixed** |
+| **BUG-105** | Bulk ZIP Timeout | Bulk download on website times out with 504 Gateway Timeout when downloading 20-50 papers. | Sequential bounded fetch across 50 papers with 12s timeout exceeds Netlify 26s proxy limit. | **Verified & Fixed** |
+| **BUG-106** | Auth / OTP Verification | Unverified users logging in with username fail verification with `404: Account not found`. | `verify-code` and `resend-code` endpoints only queried `User.email` and failed when passed username identifier. | **Verified & Fixed** |
+| **BUG-107** | Sidebar Topic Replay | Clicking a past review in the left sidebar triggers candidate discovery, wiping existing synthesis. | `onSelectTopic` forces `mode: 'discover'` rather than checking and restoring cached synthesis. | **Verified & Fixed** |
+
+

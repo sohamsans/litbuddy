@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Send, ArrowRight, Compass, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Send, ArrowRight, Compass, HelpCircle, Trash2 } from 'lucide-react';
 import { AssistantChatMessage, AssistantChatResponse } from '../types';
 import { sendAssistantChat, api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -16,16 +16,48 @@ export const AssistantChatDrawer: React.FC<AssistantChatDrawerProps> = ({
   onApplyQuery,
 }) => {
   const { activeProvider, activeModel, runtimeKeys, token, isAuthenticated } = useAuth();
-  const [messages, setMessages] = useState<AssistantChatMessage[]>([
-    {
-      role: 'assistant',
-      content:
-        'Hello. I am your LitBuddy Research Copilot. Describe your research focus or rough thesis questions in everyday terms, and I will help refine the scope and formulate precise academic search queries.',
-    },
-  ]);
+  const [messages, setMessages] = useState<AssistantChatMessage[]>(() => {
+    try {
+      const cached = localStorage.getItem('litbuddy_copilot_chat');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        role: 'assistant',
+        content:
+          'Hello. I am your LitBuddy Research Copilot. Describe your research focus or rough thesis questions in everyday terms, and I will help refine the scope and formulate precise academic search queries.',
+      },
+    ];
+  });
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [latestResponse, setLatestResponse] = useState<AssistantChatResponse | null>(null);
+
+  // Synchronize Copilot conversation to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('litbuddy_copilot_chat', JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
+
+  const handleClearCopilot = () => {
+    if (window.confirm('Reset Copilot conversation?')) {
+      const initial: AssistantChatMessage[] = [
+        {
+          role: 'assistant',
+          content:
+            'Hello. I am your LitBuddy Research Copilot. Describe your research focus or rough thesis questions in everyday terms, and I will help refine the scope and formulate precise academic search queries.',
+        },
+      ];
+      setMessages(initial);
+      try {
+        localStorage.removeItem('litbuddy_copilot_chat');
+      } catch {}
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -114,12 +146,23 @@ export const AssistantChatDrawer: React.FC<AssistantChatDrawerProps> = ({
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg dark:text-[#9aa0a6] text-slate-400 hover:dark:text-white hover:text-black hover:dark:bg-[#282a2c] hover:bg-slate-200 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleClearCopilot}
+                className="p-1.5 rounded-lg dark:text-[#9aa0a6] text-slate-400 hover:text-[#f28b82] hover:dark:bg-[#282a2c] hover:bg-slate-200 transition-colors"
+                title="Reset Copilot conversation"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-1.5 rounded-lg dark:text-[#9aa0a6] text-slate-400 hover:dark:text-white hover:text-black hover:dark:bg-[#282a2c] hover:bg-slate-200 transition-colors"
+                title="Close Copilot"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Chat Messages */}
