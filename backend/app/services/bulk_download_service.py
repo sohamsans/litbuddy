@@ -26,12 +26,16 @@ async def create_bulk_papers_zip(papers: List[VaultPaperItem]) -> io.BytesIO:
     """Download and bundle selected papers into an in-memory ZIP archive with manifest & .bib citations."""
     zip_buffer = io.BytesIO()
 
-    # Concurrent bounded download (max 4 concurrent PDF streams)
+    # Concurrent bounded download (max 4 concurrent PDF streams with 12s timeout)
     semaphore = asyncio.Semaphore(4)
 
     async def bounded_fetch(p: VaultPaperItem):
         async with semaphore:
-            return await fetch_and_vault_paper(p)
+            try:
+                return await asyncio.wait_for(fetch_and_vault_paper(p), timeout=12.0)
+            except Exception as e:
+                print(f"[Bulk Download Skip] Failed or timed out on '{p.title[:40]}': {e}")
+                return None, None
 
     tasks = [bounded_fetch(p) for p in papers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
