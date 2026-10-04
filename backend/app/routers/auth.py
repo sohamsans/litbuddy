@@ -220,25 +220,26 @@ async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
     clean_id = req.email.lower().strip()
     stmt = select(User).where(or_(User.email == clean_id, User.username == clean_id))
     user = (await db.execute(stmt)).scalar_one_or_none()
-    if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid email/username or password.")
 
     if not user.is_verified:
-        # Generate new verification code and email it
+        # User already exists but hasn't entered their code yet.
+        # Direct them immediately to the 6-digit verification code screen.
         code = generate_verification_code()
         user.verification_code = code
         user.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+        if req.password and len(req.password) >= 6:
+            user.password_hash = hash_password(req.password)
         await db.commit()
         email_res = await send_verification_email(user.email, user.username or user.name, code)
-        if not email_res.get("sent"):
-            raise HTTPException(
-                status_code=403,
-                detail="Your account is not verified yet. We tried to email a verification code, but delivery failed. Please check back shortly."
-            )
         raise HTTPException(
             status_code=403,
-            detail=f"Please verify your account first. A 6-digit code has been sent to your email."
+            detail=f"Please verify your account first. A 6-digit code has been sent to {user.email}."
         )
+
+    if not user.password_hash or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email/username or password.")
 
     token = create_access_token(user_id=user.id, email=user.email)
     return AuthTokenResponse(
