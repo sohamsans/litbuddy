@@ -134,15 +134,22 @@ export async function sendPaperQA(request: {
 
 // ---------------- Auth & BYOK APIs ----------------
 
-export async function register(username: string, email: string, password: string, name?: string): Promise<{ status: string; email: string; message: string; dev_code?: string }> {
+export async function register(username: string, email: string, password: string, name?: string): Promise<{ status: string; email: string; message: string }> {
   const res = await fetch(`${API_BASE}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password, name })
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || 'Registration failed');
+    let errorMsg = 'Registration failed';
+    try {
+      const err = await res.json();
+      errorMsg = err.detail || err.message || errorMsg;
+    } catch {
+      const txt = await res.text().catch(() => '');
+      if (txt) errorMsg = txt;
+    }
+    throw new Error(errorMsg);
   }
   return res.json();
 }
