@@ -54,7 +54,12 @@ export const AuthModal: React.FC = () => {
         throw new Error('Password must be at least 6 characters.');
       }
 
-      await registerWithEmail(cleanUser, cleanEmail, password, cleanUser);
+      const regRes = await registerWithEmail(cleanUser, cleanEmail, password, cleanUser);
+      if (regRes && (regRes as any).status === 'verified') {
+        await loginWithEmail(cleanEmail, password);
+        resetForm();
+        return;
+      }
       setSuccessMsg(`A 6-digit verification code was sent to ${cleanEmail}`);
       setStep('verify');
     } catch (err: any) {
@@ -93,7 +98,11 @@ export const AuthModal: React.FC = () => {
     } catch (err: any) {
       const msg = err.message || 'Login failed.';
       if (msg.toLowerCase().includes('verify your account first')) {
-        setSuccessMsg(`Please enter the 6-digit code sent to ${email}`);
+        const match = msg.match(/sent to ([^\s\.]+@[^\s\.]+\.[^\s\.]+)/i);
+        if (match && match[1]) {
+          setEmail(match[1]);
+        }
+        setSuccessMsg(msg);
         setStep('verify');
       } else {
         setError(msg);

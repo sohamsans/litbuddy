@@ -100,5 +100,7 @@
 | **BUG-105** | Bulk ZIP Timeout | Bulk download on website times out with 504 Gateway Timeout when downloading 20-50 papers. | Sequential bounded fetch across 50 papers with 12s timeout exceeds Netlify 26s proxy limit. | **Verified & Fixed** |
 | **BUG-106** | Auth / OTP Verification | Unverified users logging in with username fail verification with `404: Account not found`. | `verify-code` and `resend-code` endpoints only queried `User.email` and failed when passed username identifier. | **Verified & Fixed** |
 | **BUG-107** | Sidebar Topic Replay | Clicking a past review in the left sidebar triggers candidate discovery, wiping existing synthesis. | `onSelectTopic` forces `mode: 'discover'` rather than checking and restoring cached synthesis. | **Verified & Fixed** |
+| **BUG-108** | Desktop Cross-Device Auth | Desktop app reports "account isn't verified yet" for accounts registered/verified on the cloud website. | Desktop runs local SQLite (`autolit.db`) disconnected from cloud; local entry was unverified with no local SMTP service; old `LitBuddy.exe` pre-dated cloud auth fallback; non-deterministic relative db path. Implemented cloud auth probe fallback, local password auto-verification, deterministic DB path resolution, and rebuilt `LitBuddy.exe`. | **Verified & Fixed** |
+
 
 

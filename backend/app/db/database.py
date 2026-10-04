@@ -1,8 +1,27 @@
 import os
+import sys
+from pathlib import Path
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./autolit.db")
+def _get_database_url() -> str:
+    env_url = os.getenv("DATABASE_URL")
+    if env_url:
+        return env_url
+    
+    # If running as frozen executable (PyInstaller)
+    if getattr(sys, "frozen", False):
+        base_dir = Path(sys.executable).parent
+        db_path = base_dir / "autolit.db"
+        return f"sqlite+aiosqlite:///{db_path.as_posix()}"
+    
+    # In development mode, check backend/ or parent directory
+    curr_file = Path(__file__).resolve()
+    backend_dir = curr_file.parents[2]
+    backend_db = backend_dir / "autolit.db"
+    return f"sqlite+aiosqlite:///{backend_db.as_posix()}"
+
+DATABASE_URL = _get_database_url()
 
 engine = create_async_engine(
     DATABASE_URL,

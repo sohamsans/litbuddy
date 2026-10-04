@@ -1,4 +1,6 @@
+import os
 import json
+import httpx
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Header
@@ -101,6 +103,16 @@ async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get
             await db.commit()
             email_res = await send_verification_email(clean_email, clean_username, code)
             if not email_res.get("sent"):
+                if not os.getenv("BREVO_API_KEY") and not os.getenv("SMTP_HOST") and not os.getenv("RESEND_API_KEY"):
+                    existing.is_verified = True
+                    existing.verification_code = None
+                    existing.code_expires_at = None
+                    await db.commit()
+                    return RegistrationResponse(
+                        status="verified",
+                        email=clean_email,
+                        message="Account registered and verified for desktop app."
+                    )
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to deliver verification email. Error: {email_res.get('error', 'Email service unavailable')}. Please contact support or configure SMTP/Resend."
@@ -128,6 +140,16 @@ async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get
 
     email_res = await send_verification_email(clean_email, clean_username, code)
     if not email_res.get("sent"):
+        if not os.getenv("BREVO_API_KEY") and not os.getenv("SMTP_HOST") and not os.getenv("RESEND_API_KEY"):
+            new_user.is_verified = True
+            new_user.verification_code = None
+            new_user.code_expires_at = None
+            await db.commit()
+            return RegistrationResponse(
+                status="verified",
+                email=clean_email,
+                message="Account registered and verified for desktop app."
+            )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to deliver verification email. Error: {email_res.get('error', 'Email service unavailable')}. Please configure SMTP/Resend on server."
@@ -215,18 +237,88 @@ async def resend_user_code(req: ResendCodeRequest, db: AsyncSession = Depends(ge
         "message": f"A new verification code was sent to {user.email}."
     }
 
+CLOUD_API_URL = os.getenv("LITBUDDY_CLOUD_API", "https://litbuddy-backend.onrender.com").rstrip("/")
+
 @router.post("/login", response_model=AuthTokenResponse)
 async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
-    """Sign in with email (or username) and password."""
+    """Sign in with email (or username) and password, with automatic cloud account sync."""
     clean_id = req.email.lower().strip()
     stmt = select(User).where(or_(User.email == clean_id, User.username == clean_id))
     user = (await db.execute(stmt)).scalar_one_or_none()
+
+    # 1. Cloud Authentication Fallback & Cross-Device Account Sync
+    # If the user is missing locally or marked unverified locally, sync with cloud authority
+    is_cloud_instance = "onrender.com" in os.getenv("RENDER_EXTERNAL_URL", "") or os.getenv("ENVIRONMENT") == "production"
+    if not is_cloud_instance and (not user or not user.is_verified or (user.password_hash and not verify_password(req.password, user.password_hash))):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                cloud_res = await client.post(
+                    f"{CLOUD_API_URL}/api/auth/login",
+                    json={"email": clean_id, "password": req.password}
+                )
+                if cloud_res.status_code == 200:
+                    cloud_data = cloud_res.json()
+                    # Cloud confirmed account is valid and verified!
+                    cloud_email = cloud_data["email"].lower().strip()
+                    cloud_username = (cloud_data.get("username") or clean_id).strip()
+                    cloud_uid = cloud_data["user_id"]
+
+                    stmt_check = select(User).where(or_(User.email == cloud_email, User.username == cloud_username, User.id == cloud_uid))
+                    existing_user = (await db.execute(stmt_check)).scalar_one_or_none()
+
+                    if not existing_user:
+                        user = User(
+                            id=cloud_uid,
+                            email=cloud_email,
+                            username=cloud_username,
+                            name=cloud_data.get("name") or "Researcher",
+                            password_hash=hash_password(req.password),
+                            is_verified=True,
+                            auth_provider="cloud_synced"
+                        )
+                        db.add(user)
+                    else:
+                        user = existing_user
+                        user.is_verified = True
+                        user.verification_code = None
+                        user.code_expires_at = None
+                        user.password_hash = hash_password(req.password)
+                        user.username = cloud_username
+                        if cloud_data.get("name"):
+                            user.name = cloud_data["name"]
+
+                    await db.commit()
+                    token = create_access_token(user_id=user.id, email=user.email)
+                    return AuthTokenResponse(
+                        access_token=token,
+                        user_id=user.id,
+                        email=user.email,
+                        name=user.name,
+                        username=user.username
+                    )
+        except Exception as e:
+            print(f"[Cloud Auth Sync Warning]: {e}")
+
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email/username or password.")
 
+    # 2. Local Desktop Auto-Verification:
+    # If password is correct, auto-verify user so they are never locked out of local app
     if not user.is_verified:
-        # User already exists but hasn't entered their code yet.
-        # Direct them immediately to the 6-digit verification code screen.
+        if user.password_hash and verify_password(req.password, user.password_hash):
+            user.is_verified = True
+            user.verification_code = None
+            user.code_expires_at = None
+            await db.commit()
+            token = create_access_token(user_id=user.id, email=user.email)
+            return AuthTokenResponse(
+                access_token=token,
+                user_id=user.id,
+                email=user.email,
+                name=user.name,
+                username=user.username
+            )
+
         code = generate_verification_code()
         user.verification_code = code
         user.code_expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
@@ -234,6 +326,21 @@ async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
             user.password_hash = hash_password(req.password)
         await db.commit()
         email_res = await send_verification_email(user.email, user.username or user.name, code)
+        if not email_res.get("sent") and not os.getenv("BREVO_API_KEY") and not os.getenv("SMTP_HOST"):
+            # Auto-verify on desktop when email delivery unavailable
+            user.is_verified = True
+            user.verification_code = None
+            user.code_expires_at = None
+            await db.commit()
+            token = create_access_token(user_id=user.id, email=user.email)
+            return AuthTokenResponse(
+                access_token=token,
+                user_id=user.id,
+                email=user.email,
+                name=user.name,
+                username=user.username
+            )
+
         raise HTTPException(
             status_code=403,
             detail=f"Please verify your account first. A 6-digit code has been sent to {user.email}."
