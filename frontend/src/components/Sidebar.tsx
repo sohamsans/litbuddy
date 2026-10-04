@@ -15,6 +15,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { SavedSearchItem } from '../types';
+import { LitBuddyLogo } from './LitBuddyLogo';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -71,21 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="h-14 px-4 flex items-center justify-between border-b dark:border-[#2d2f31] border-[#dadce0]">
         {isOpen ? (
           <div className="flex items-center gap-2.5">
-            {/* Google-style 4-point rainbow star */}
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
-                fill="url(#gemini-rainbow)"
-              />
-              <defs>
-                <linearGradient id="gemini-rainbow" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#4285F4" />
-                  <stop offset="0.33" stopColor="#9B72CB" />
-                  <stop offset="0.66" stopColor="#D96570" />
-                  <stop offset="1" stopColor="#F4B400" />
-                </linearGradient>
-              </defs>
-            </svg>
+            <LitBuddyLogo className="w-6 h-6 shrink-0" />
             <span className="font-semibold text-base tracking-tight dark:text-[#e3e3e3] text-[#1f1f1f]">
               LitBuddy
             </span>
@@ -97,20 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="p-1 text-[#9aa0a6] hover:text-white"
             title="Expand Sidebar"
           >
-            <svg className="w-5 h-5 mx-auto" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
-                fill="url(#gemini-rainbow-collapsed)"
-              />
-              <defs>
-                <linearGradient id="gemini-rainbow-collapsed" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                  <stop stopColor="#4285F4" />
-                  <stop offset="0.33" stopColor="#9B72CB" />
-                  <stop offset="0.66" stopColor="#D96570" />
-                  <stop offset="1" stopColor="#F4B400" />
-                </linearGradient>
-              </defs>
-            </svg>
+            <LitBuddyLogo className="w-6 h-6 mx-auto" />
           </button>
         )}
 

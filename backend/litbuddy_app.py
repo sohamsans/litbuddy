@@ -61,52 +61,66 @@ SPLASH_HTML = f"""<!DOCTYPE html>
       width: 96px;
       height: 96px;
       border-radius: 22px;
-      background: linear-gradient(135deg, #1a1b2e 0%, #0d1117 100%);
+      background: #0c0d10;
+      border: 1.5px solid #23262d;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 52px;
-      box-shadow: 0 0 48px rgba(138,180,248,0.25), 0 0 16px rgba(138,180,248,0.12);
-      animation: pulse 2s ease-in-out infinite;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+      animation: pulse 2.5s ease-in-out infinite;
     }}
     @keyframes pulse {{
-      0%,100% {{ box-shadow: 0 0 48px rgba(138,180,248,0.25), 0 0 16px rgba(138,180,248,0.12); }}
-      50%  {{ box-shadow: 0 0 72px rgba(138,180,248,0.45), 0 0 32px rgba(138,180,248,0.22); }}
+      0%,100% {{ transform: scale(1); box-shadow: 0 16px 40px rgba(0,0,0,0.6); }}
+      50%  {{ transform: scale(1.02); box-shadow: 0 20px 48px rgba(0,0,0,0.8), 0 0 20px rgba(255,255,255,0.06); }}
     }}
     h1 {{
-      font-size: 28px;
+      font-size: 24px;
       font-weight: 600;
       letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #8ab4f8, #c084fc);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #f8fafc;
     }}
     .sub {{
       font-size: 13px;
-      color: #5f6368;
-      letter-spacing: 0.3px;
+      color: #64748b;
+      letter-spacing: 0.2px;
     }}
     .dots {{
       display: flex;
       gap: 8px;
     }}
     .dot {{
-      width: 8px; height: 8px;
+      width: 7px; height: 7px;
       border-radius: 50%;
-      background: #8ab4f8;
+      background: #94a3b8;
       animation: bounce 1.4s ease-in-out infinite;
     }}
     .dot:nth-child(2) {{ animation-delay: 0.16s; }}
     .dot:nth-child(3) {{ animation-delay: 0.32s; }}
     @keyframes bounce {{
-      0%,80%,100% {{ transform: scale(0.7); opacity: 0.4; }}
+      0%,80%,100% {{ transform: scale(0.7); opacity: 0.3; }}
       40% {{ transform: scale(1.0); opacity: 1; }}
     }}
-    .status {{ font-size: 12px; color: #3c4043; margin-top: -16px; }}
+    .status {{ font-size: 12px; color: #475569; margin-top: -16px; }}
   </style>
 </head>
 <body>
-  <div class="logo">📚</div>
+  <div class="logo">
+    <svg width="56" height="56" viewBox="0 0 64 64" fill="none">
+      <defs>
+        <linearGradient id="splash-silver" x1="16" y1="16" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFFFFF" />
+          <stop offset="50%" stop-color="#E2E8F0" />
+          <stop offset="100%" stop-color="#94A3B8" />
+        </linearGradient>
+      </defs>
+      <path d="M13 21L32 27.5L51 21V43.5L32 50L13 43.5V21Z" stroke="#334155" stroke-width="2" stroke-linejoin="round" fill="#13161C"/>
+      <path d="M17 18L32 24.5L47 18V41L32 47.5L17 41V18Z" stroke="url(#splash-silver)" stroke-width="2.5" stroke-linejoin="round" fill="#181B22"/>
+      <path d="M32 24.5V47.5" stroke="url(#splash-silver)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M22 23V36.5H29" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M35 24.5L43 32L35 39.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M35 32H41.5" stroke="#FFFFFF" stroke-width="1.8" stroke-linecap="round"/>
+    </svg>
+  </div>
   <div style="text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center">
     <h1>LitBuddy</h1>
     <p class="sub">Autonomous Literature Review &amp; Vault</p>
