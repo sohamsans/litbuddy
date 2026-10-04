@@ -42,3 +42,13 @@ Thumbs.db
 # Sensitive environment variables
 .env
 backend/.env
+
+# Agent skills, planning files, and AI metadata (kept private locally)
+.agents/
+GEMINI.md
+PROJECT_MEMORY.md
+plan_*.md
+*.spec
+
+# Deployment mirror folder
+netlify_deploy/

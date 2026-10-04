@@ -75,8 +75,8 @@ litbuddy/
 │   │   └── types/               # TypeScript interfaces
 │   ├── package.json
 │   └── vite.config.ts
-├── litbuddy.spec                # PyInstaller standalone executable specification
-└── build_windows_exe.bat        # Automated Windows build script
+├── netlify.toml                 # Production Netlify routing and deployment config
+└── build_windows_exe.bat        # Automated Windows desktop build script
 ```
 
 ---
