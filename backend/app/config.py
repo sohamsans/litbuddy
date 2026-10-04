@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     
     # Lightweight, high-speed, 100% free cloud models
     groq_model: str = "openai/gpt-oss-20b"
-    gemini_model: str = "gemini-3.5-flash-lite"
+    gemini_model: str = "gemini-2.0-flash"
     
     # Defaults for pipeline
     default_max_results: int = 20

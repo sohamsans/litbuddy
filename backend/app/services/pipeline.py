@@ -127,16 +127,36 @@ async def run_literature_review_pipeline(request: SearchRequest) -> PipelineResp
             f"No papers met threshold score of {request.relevance_threshold}. Included top {len(selected_papers)} papers."
         )
 
-    # Phase C & D: Deep Extraction
+    # Phase C & D: Deep Extraction (bounded with per-paper 14s timeout)
     extracted_papers: List[ReviewPaper] = []
-    semaphore = asyncio.Semaphore(4)
+    semaphore = asyncio.Semaphore(3)
 
     async def bounded_process(p: RawPaperMetadata):
         async with semaphore:
             t_info = triage_map.get(p.id)
             score = t_info.score if t_info else 4
             rationale = t_info.rationale if t_info else "Passed initial screening."
-            return await process_paper_deep_extraction(p, request.topic, score, rationale, llm)
+            try:
+                return await asyncio.wait_for(
+                    process_paper_deep_extraction(p, request.topic, score, rationale, llm),
+                    timeout=14.0
+                )
+            except asyncio.TimeoutError:
+                print(f"[Pipeline Deep Timeout] Paper '{p.title[:40]}' timed out, using lean fallback.")
+                from app.services.llm_provider import parse_deep_fallback
+                return parse_deep_fallback({
+                    "id": p.id,
+                    "title": p.title,
+                    "year": p.year,
+                    "authors": p.authors,
+                    "venue": p.venue,
+                    "relevance_score": score,
+                    "triage_rationale": rationale,
+                    "doi_link": f"https://doi.org/{p.doi}" if p.doi else (p.pdf_url or ""),
+                    "pdf_downloaded": False,
+                    "source": p.source,
+                    "abstract": p.abstract
+                }, p.abstract or "")
 
     tasks = [bounded_process(p) for p in selected_papers]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -187,30 +207,50 @@ async def run_pipeline_on_selected_papers(request: SelectedPipelineRequest) -> P
     triage_result = await llm.batch_triage(topic=request.topic, candidates=candidate_dicts)
     triage_map = {item.id: item for item in triage_result.evaluations}
 
-    # Filter top papers or respect user choice (up to 12 max for deep extraction)
+    # Filter top papers or respect user choice (capped at 6 for rapid Stage 2 extraction)
     filtered: List[RawPaperMetadata] = []
     for p in request.selected_papers:
         t_info = triage_map.get(p.id)
         score = t_info.score if t_info else 4
         if score >= request.relevance_threshold:
             filtered.append(p)
-            if len(filtered) >= 12:
+            if len(filtered) >= 6:
                 break
 
     if not filtered:
-        filtered = request.selected_papers[:min(len(request.selected_papers), 6)]
+        filtered = request.selected_papers[:min(len(request.selected_papers), 4)]
         warnings.append(f"Included top {len(filtered)} selected papers.")
 
-    # Stage 2: Deep extraction
+    # Stage 2: Deep extraction (bounded with per-paper 12s timeout)
     extracted_papers: List[ReviewPaper] = []
-    semaphore = asyncio.Semaphore(4)
+    semaphore = asyncio.Semaphore(3)
 
     async def bounded_process(p: RawPaperMetadata):
         async with semaphore:
             t_info = triage_map.get(p.id)
             score = t_info.score if t_info else 4
             rationale = t_info.rationale if t_info else "Selected by researcher."
-            return await process_paper_deep_extraction(p, request.topic, score, rationale, llm)
+            try:
+                return await asyncio.wait_for(
+                    process_paper_deep_extraction(p, request.topic, score, rationale, llm),
+                    timeout=14.0
+                )
+            except asyncio.TimeoutError:
+                print(f"[Deep Extraction Timeout] Paper '{p.title[:40]}' timed out, using lean fallback.")
+                from app.services.llm_provider import parse_deep_fallback
+                return parse_deep_fallback({
+                    "id": p.id,
+                    "title": p.title,
+                    "year": p.year,
+                    "authors": p.authors,
+                    "venue": p.venue,
+                    "relevance_score": score,
+                    "triage_rationale": rationale,
+                    "doi_link": f"https://doi.org/{p.doi}" if p.doi else (p.pdf_url or ""),
+                    "pdf_downloaded": False,
+                    "source": p.source,
+                    "abstract": p.abstract
+                }, p.abstract or "")
 
     tasks = [bounded_process(p) for p in filtered]
     results = await asyncio.gather(*tasks, return_exceptions=True)

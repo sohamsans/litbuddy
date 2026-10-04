@@ -180,24 +180,37 @@ class UniversalLLMClient:
     async def _call_gemini(self, system_prompt: str, user_prompt: str) -> str:
         if not self.gemini_key:
             raise RuntimeError("Gemini API key is not configured.")
+
+        # Map obsolete / typo model names to current valid official Gemini models
+        target_model = self.model_name or "gemini-2.0-flash"
+        if "3.5" in target_model:
+            target_model = "gemini-2.0-flash"
+
         try:
+            import asyncio
             from google import genai
             from google.genai import types
+
             client = genai.Client(api_key=self.gemini_key)
             prompt = f"{system_prompt}\n\n{user_prompt}"
-            res = client.models.generate_content(
-                model=self.model_name if "gemini" in self.model_name else "gemini-3.5-flash-lite",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.2
+
+            # Run blocking SDK network call in threadpool so it doesn't freeze the async event loop
+            def _sync_generate():
+                return client.models.generate_content(
+                    model=target_model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.2
+                    )
                 )
-            )
+
+            res = await asyncio.to_thread(_sync_generate)
             return res.text or "{}"
         except Exception as e:
             # Fallback to direct REST API if google-genai SDK fails
-            endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model_name}:generateContent?key={self.gemini_key}"
-            async with httpx.AsyncClient(timeout=35.0) as client:
+            endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={self.gemini_key}"
+            async with httpx.AsyncClient(timeout=45.0) as client:
                 body = {
                     "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
                     "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}

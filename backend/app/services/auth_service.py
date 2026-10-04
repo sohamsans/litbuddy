@@ -118,11 +118,11 @@ PROVIDERS_METADATA = [
         "id": "gemini",
         "name": "Google Gemini",
         "tier": "Free Tier",
-        "default_model": "gemini-3.5-flash-lite",
+        "default_model": "gemini-2.0-flash",
         "models": [
-            {"id": "gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite (Fastest & Free)", "cost": "100% Free"},
-            {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "cost": "100% Free"},
-            {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash (Large Context)", "cost": "100% Free"}
+            {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash (Fastest & Recommended)", "cost": "100% Free"},
+            {"id": "gemini-1.5-flash", "name": "Gemini 1.5 Flash (Large Context)", "cost": "100% Free"},
+            {"id": "gemini-1.5-pro", "name": "Gemini 1.5 Pro (Deep Reasoning)", "cost": "Free Rate Limits"}
         ],
         "signup_url": "https://aistudio.google.com/app/apikey",
         "instructions": "1. Open Google AI Studio\n2. Click 'Get API key'\n3. Create key in new project\n4. Copy key starting with 'AIzaSy' or 'AQ.'",
