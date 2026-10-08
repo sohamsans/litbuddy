@@ -1,9 +1,18 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { UserProfile, ModelProvider } from '../types';
-import { api } from '../services/api';
+
+export interface OfflineProfile {
+  name: string;
+  username: string;
+  title: string;
+  avatar_color: 'sky' | 'emerald' | 'purple' | 'amber' | 'rose' | 'zinc';
+  save_chat_history?: boolean;
+}
 
 interface AuthContextType {
   user: UserProfile | null;
+  offlineProfile: OfflineProfile;
+  saveOfflineProfile: (profile: Partial<OfflineProfile>) => void;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -31,7 +40,7 @@ interface AuthContextType {
   runtimeKeys: Record<string, string>;
   setRuntimeKey: (provider: string, key: string) => void;
 
-  // Actions
+  // Compatibility stubs
   loginWithEmail: (identifier: string, pass: string) => Promise<void>;
   registerWithEmail: (username: string, email: string, pass: string, name?: string) => Promise<{ status: string; email: string; message: string; dev_code?: string }>;
   verifyAccountCode: (email: string, code: string) => Promise<void>;
@@ -41,12 +50,27 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
 }
 
+const DEFAULT_PROFILE: OfflineProfile = {
+  name: 'Fellow Researcher',
+  username: 'researcher',
+  title: 'Independent Scholar',
+  avatar_color: 'sky',
+  save_chat_history: true
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem('autolit_auth_token'));
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [offlineProfile, setOfflineProfile] = useState<OfflineProfile>(() => {
+    try {
+      const stored = localStorage.getItem('litbuddy_offline_profile');
+      if (stored) return { ...DEFAULT_PROFILE, ...JSON.parse(stored) };
+    } catch {}
+    return DEFAULT_PROFILE;
+  });
+
+  const [token] = useState<string | null>('offline_desktop_token');
+  const [isLoading] = useState<boolean>(false);
 
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -58,13 +82,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return (localStorage.getItem('autolit_active_provider') as ModelProvider) || 'groq';
   });
   const [activeModel, setActiveModel] = useState<string>(() => {
-    return localStorage.getItem('autolit_active_model') || 'openai/gpt-oss-20b';
+    return localStorage.getItem('autolit_active_model') || 'llama-3.1-8b-instant';
   });
 
-  // Runtime API keys state (stored in session or memory)
+  // Runtime API keys state (stored in session or localStorage)
   const [runtimeKeys, setRuntimeKeys] = useState<Record<string, string>>(() => {
     try {
-      const stored = sessionStorage.getItem('autolit_runtime_keys');
+      const stored = localStorage.getItem('autolit_runtime_keys') || sessionStorage.getItem('autolit_runtime_keys');
       return stored ? JSON.parse(stored) : {};
     } catch {
       return {};
@@ -74,95 +98,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const setRuntimeKey = (provider: string, key: string) => {
     setRuntimeKeys(prev => {
       const next = { ...prev, [provider]: key };
+      localStorage.setItem('autolit_runtime_keys', JSON.stringify(next));
       sessionStorage.setItem('autolit_runtime_keys', JSON.stringify(next));
       return next;
     });
   };
 
-  const refreshProfile = useCallback(async () => {
-    if (!token) {
-      setUser(null);
-      setIsLoading(false);
-      return;
-    }
-    try {
-      const profile = await api.getProfile(token);
-      setUser(profile);
-      if (profile.selected_model) {
-        setActiveModel(profile.selected_model);
-      }
-    } catch (err) {
-      console.warn('Failed to load profile, token might be expired:', err);
-      // If token invalid, clear
-      setToken(null);
-      localStorage.removeItem('autolit_auth_token');
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [token]);
+  const saveOfflineProfile = useCallback((updates: Partial<OfflineProfile>) => {
+    setOfflineProfile(prev => {
+      const next = { ...prev, ...updates };
+      localStorage.setItem('litbuddy_offline_profile', JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
-  useEffect(() => {
-    refreshProfile();
-  }, [refreshProfile]);
-
-  useEffect(() => {
-    localStorage.setItem('autolit_active_provider', activeProvider);
-  }, [activeProvider]);
-
-  useEffect(() => {
-    localStorage.setItem('autolit_active_model', activeModel);
-  }, [activeModel]);
-
-  const loginWithEmail = async (identifier: string, pass: string) => {
-    const res = await api.login(identifier, pass);
-    localStorage.setItem('autolit_auth_token', res.access_token);
-    setToken(res.access_token);
-    setIsAuthModalOpen(false);
-  };
-
-  const registerWithEmail = async (username: string, email: string, pass: string, name?: string) => {
-    return await api.register(username, email, pass, name);
-  };
-
-  const verifyAccountCode = async (email: string, code: string) => {
-    const res = await api.verifyCode(email, code);
-    localStorage.setItem('autolit_auth_token', res.access_token);
-    setToken(res.access_token);
-    setIsAuthModalOpen(false);
-  };
-
-  const resendAccountCode = async (email: string) => {
-    return await api.resendCode(email);
-  };
-
-  const logout = () => {
-    localStorage.removeItem('autolit_auth_token');
-    sessionStorage.removeItem('autolit_runtime_keys');
-    setToken(null);
-    setUser(null);
-    setRuntimeKeys({});
-  };
-
-  const saveBYOKKeys = async (keys: Record<string, any>) => {
-    if (token) {
-      await api.saveKeys(token, keys);
-      await refreshProfile();
-    }
-    // Also save in runtimeKeys
+  const saveBYOKKeys = useCallback(async (keys: Record<string, any>) => {
     setRuntimeKeys(prev => {
       const next = { ...prev, ...keys };
+      localStorage.setItem('autolit_runtime_keys', JSON.stringify(next));
       sessionStorage.setItem('autolit_runtime_keys', JSON.stringify(next));
       return next;
     });
+  }, []);
+
+  // Adapt offline profile to UserProfile interface for seamless app-wide compatibility
+  const user: UserProfile = {
+    id: 'offline_user',
+    email: `${offlineProfile.username}@litbuddy.offline`,
+    username: offlineProfile.username,
+    name: offlineProfile.name,
+    auth_provider: 'offline',
+    selected_model: activeModel,
+    theme_pref: 'dark',
+    save_chat_history: offlineProfile.save_chat_history ?? true,
+    contribute_public_cache: false,
+    configured_keys: runtimeKeys
   };
+
+  const refreshProfile = useCallback(async () => {}, []);
+  const logout = useCallback(() => {}, []);
+  const loginWithEmail = useCallback(async () => {}, []);
+  const registerWithEmail = useCallback(async () => ({ status: 'verified', email: '', message: '' }), []);
+  const verifyAccountCode = useCallback(async () => {}, []);
+  const resendAccountCode = useCallback(async () => ({ status: 'ok', message: '' }), []);
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        offlineProfile,
+        saveOfflineProfile,
         token,
-        isAuthenticated: !!user,
+        isAuthenticated: true, // Always true for offline desktop app!
         isLoading,
         isAuthModalOpen,
         openAuthModal: () => setIsAuthModalOpen(true),

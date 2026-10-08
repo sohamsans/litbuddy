@@ -9,12 +9,15 @@ import {
   Search,
   CheckCircle2,
   ChevronDown,
-  Trash2
+  Trash2,
+  Share2
 } from 'lucide-react';
 import { ReviewPaper, RawPaperMetadata, AssistantChatMessage } from '../types';
 import { LatexRenderer } from './LatexRenderer';
 import { sendPaperQA, api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { LitBuddyLogo } from './LitBuddyLogo';
+import { ResearchContextExporter } from './ResearchContextExporter';
 
 interface PaperChatAreaProps {
   topic: string;
@@ -92,6 +95,7 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { activeProvider, activeModel, runtimeKeys, token, isAuthenticated } = useAuth();
 
@@ -245,6 +249,16 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
         <div className="flex items-center gap-2">
           <button
             type="button"
+            onClick={() => setIsExportModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-xs font-medium text-zinc-300 hover:text-white transition-colors"
+            title="Export grounded literature context for ChatGPT, Claude, or Gemini"
+          >
+            <Share2 className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Export Context</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleClearChat}
             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-[#9aa0a6] hover:text-[#f28b82] transition-colors"
             title="Clear chat messages (cached papers, figures, and reference vault remain preserved)"
@@ -274,21 +288,8 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
             }`}
           >
             {msg.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-full bg-[#282a2c] border border-[#3c4043] flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
-                    fill="url(#chat-rainbow)"
-                  />
-                  <defs>
-                    <linearGradient id="chat-rainbow" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                      <stop stopColor="#4285F4" />
-                      <stop offset="0.33" stopColor="#9B72CB" />
-                      <stop offset="0.66" stopColor="#D96570" />
-                      <stop offset="1" stopColor="#F4B400" />
-                    </linearGradient>
-                  </defs>
-                </svg>
+              <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-xs">
+                <LitBuddyLogo className="w-4 h-4" />
               </div>
             )}
 
@@ -408,6 +409,16 @@ export const PaperChatArea: React.FC<PaperChatAreaProps> = ({
           LitBuddy grounds all answers in the curated paper pool. Mathematical formulas render dynamically with KaTeX.
         </p>
       </div>
+
+      {/* Universal Research Context Exporter */}
+      <ResearchContextExporter
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        topic={topic}
+        synthesizedPapers={synthesizedPapers}
+        candidatePool={candidatePool}
+        recentQuestions={messages.filter((m) => m.role === 'user').map((m) => m.content).slice(-5)}
+      />
     </div>
   );
 };

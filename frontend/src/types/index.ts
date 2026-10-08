@@ -145,6 +145,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
+  username?: string;
   auth_provider: string;
   selected_model: string;
   theme_pref: string;
@@ -243,3 +244,39 @@ export interface ChatHistoryRecord {
   messages: AssistantChatMessage[];
   created_at: string;
 }
+
+// ----------------- Manuscript & Writing Studio Types -----------------
+
+export type ManuscriptMode = 'rich' | 'latex';
+
+export interface ManuscriptItem {
+  id: string;
+  title: string;
+  mode: ManuscriptMode;
+  content: string;
+  latex_source: string;
+  associated_topic?: string;
+  citations: string[];
+  word_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ManuscriptSaveRequest {
+  id?: string;
+  title: string;
+  mode: ManuscriptMode;
+  content: string;
+  latex_source: string;
+  associated_topic?: string;
+  citations: string[];
+  word_count?: number;
+}
+
+export interface ManuscriptResponse extends ManuscriptItem {}
+
+export interface ManuscriptListResponse {
+  items: ManuscriptItem[];
+  total: number;
+}
+

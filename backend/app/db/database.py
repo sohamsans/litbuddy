@@ -64,6 +64,38 @@ async def init_db():
                         sync_conn.execute(text("ALTER TABLE users ADD COLUMN verification_code TEXT NULL"))
                     if "code_expires_at" not in user_cols:
                         sync_conn.execute(text("ALTER TABLE users ADD COLUMN code_expires_at DATETIME NULL"))
+
+                # Ensure manuscripts table exists for existing databases
+                sync_conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS manuscripts (
+                        id VARCHAR(36) PRIMARY KEY,
+                        user_id VARCHAR(36) NULL,
+                        title VARCHAR(255) DEFAULT 'Untitled Manuscript',
+                        mode VARCHAR(20) DEFAULT 'rich',
+                        content TEXT DEFAULT '',
+                        latex_source TEXT DEFAULT '',
+                        associated_topic VARCHAR(255) NULL,
+                        citations_json TEXT NULL,
+                        word_count INTEGER DEFAULT 0,
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                """))
+
+                # Ensure flow_canvases table exists for existing databases
+                sync_conn.execute(text("""
+                    CREATE TABLE IF NOT EXISTS flow_canvases (
+                        id VARCHAR(36) PRIMARY KEY,
+                        user_id VARCHAR(36) NULL,
+                        title VARCHAR(255) DEFAULT 'Untitled Flow Map',
+                        topic VARCHAR(255) DEFAULT 'General Research',
+                        nodes_json TEXT DEFAULT '[]',
+                        edges_json TEXT DEFAULT '[]',
+                        viewport_json TEXT DEFAULT '{"x": 0, "y": 0, "zoom": 1}',
+                        created_at DATETIME,
+                        updated_at DATETIME
+                    )
+                """))
             except Exception as e:
                 print(f"[DB Auto-Migration Warning] {e}")
 

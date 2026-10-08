@@ -261,3 +261,32 @@ class RefinedSynthesisResponse(BaseModel):
     unaddressed_limitations: str
     figures: List[FigureMetadata] = Field(default_factory=list)
     bibtex: str
+
+# ----------------- Manuscript & Writing Studio Schemas -----------------
+
+class ManuscriptSaveRequest(BaseModel):
+    id: Optional[str] = None
+    title: str = "Untitled Manuscript"
+    mode: str = "rich" # 'rich' or 'latex'
+    content: str = "" # Rich Markdown content
+    latex_source: str = "" # Raw LaTeX source
+    associated_topic: Optional[str] = None
+    citations: List[str] = Field(default_factory=list) # List of cited DOIs / keys
+    word_count: int = 0
+
+class ManuscriptResponse(BaseModel):
+    id: str
+    title: str
+    mode: str
+    content: str
+    latex_source: str
+    associated_topic: Optional[str] = None
+    citations: List[str] = Field(default_factory=list)
+    word_count: int = 0
+    created_at: str
+    updated_at: str
+
+class ManuscriptListResponse(BaseModel):
+    items: List[ManuscriptResponse]
+    total: int
+

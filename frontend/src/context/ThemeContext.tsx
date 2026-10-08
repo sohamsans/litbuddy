@@ -14,14 +14,14 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const THEME_CONFIGS: Record<AccentTheme, { name: string; hex: string; description: string }> = {
   gemini: {
-    name: 'Gemini Rainbow',
-    hex: '#4285F4',
-    description: 'Signature Google multi-color gradient'
+    name: 'Obsidian Platinum',
+    hex: '#8ab4f8',
+    description: 'Disciplined platinum & slate'
   },
   sapphire: {
-    name: 'Google Blue',
-    hex: '#1a73e8',
-    description: 'Crisp academic cobalt'
+    name: 'Academic Cobalt',
+    hex: '#3b82f6',
+    description: 'Crisp academic blue'
   },
   amethyst: {
     name: 'Lavender Purple',

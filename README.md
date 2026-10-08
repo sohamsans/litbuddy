@@ -81,6 +81,31 @@ litbuddy/
 
 ---
 
+## Beta Release & Standalone Downloads
+
+LitBuddy is distributed as a lightweight, 100% offline-ready standalone executable for Windows 10/11:
+
+### 📥 Download the Latest Beta
+- **Release Version**: `v4.2.0-beta.1`
+- **File**: `LitBuddy.exe` (~173 MB, self-contained single file)
+- **Direct GitHub Releases**: [https://github.com/sohamsans/litbuddy/releases](https://github.com/sohamsans/litbuddy/releases)
+- **Requirements**: Windows 10 or 11 (64-bit). No Python, Node.js, or complex command-line installation required. Simply double-click `LitBuddy.exe` to launch.
+
+---
+
+## 🐛 Bug Reports & Community Feedback
+
+We welcome your feedback, ideas, and bug reports!
+
+If you encounter any issues, layout glitches, or unexpected behavior:
+1. Head over to the **[GitHub Issues](https://github.com/sohamsans/litbuddy/issues)** page.
+2. Click **New Issue**.
+3. **Attach screenshots** of the window or relevant panels (Flow Maps, Writing Studio, Reference Manager, etc.).
+4. Describe what you were trying to do and what happened.
+5. You can also click the **"Report Issue"** or **"GitHub"** buttons directly inside LitBuddy's top header bar or sidebar footer to open this page instantly.
+
+---
+
 ## Running Locally
 
 ### Option 1: Standalone Windows Application (`LitBuddy.exe`)

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, ExternalLink, BookOpen, AlertCircle, Award, Download, Image as ImageIcon, Sparkles, Loader2, ZoomIn } from 'lucide-react';
+import { X, ExternalLink, BookOpen, AlertCircle, Award, Download, Image as ImageIcon, Sparkles, Loader2, ZoomIn, Quote } from 'lucide-react';
 import { ReviewPaper, FigureMetadata, RefinedSynthesisResponse } from '../types';
 import { TagBadge } from './TagBadge';
 import { vaultSinglePaper, fetchRefinedSynthesis } from '../services/api';
@@ -7,9 +7,10 @@ import { vaultSinglePaper, fetchRefinedSynthesis } from '../services/api';
 interface PaperDetailModalProps {
   paper: ReviewPaper | null;
   onClose: () => void;
+  onCitePaper?: (paper: { id: string; title: string; authors?: string[]; year?: number; doi?: string }) => void;
 }
 
-export const PaperDetailModal: React.FC<PaperDetailModalProps> = ({ paper, onClose }) => {
+export const PaperDetailModal: React.FC<PaperDetailModalProps> = ({ paper, onClose, onCitePaper }) => {
   const [isDownloading, setIsDownloading] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [refinedData, setRefinedData] = useState<RefinedSynthesisResponse | null>(null);
@@ -263,6 +264,27 @@ export const PaperDetailModal: React.FC<PaperDetailModalProps> = ({ paper, onClo
                 </>
               )}
             </button>
+
+            {onCitePaper && (
+              <button
+                type="button"
+                onClick={() => {
+                  onCitePaper({
+                    id: paper.id,
+                    title: paper.title,
+                    authors: paper.authors,
+                    year: paper.year,
+                    doi: paper.doi_link
+                  });
+                  onClose();
+                }}
+                className="inline-flex items-center text-xs font-medium text-emerald-400 hover:text-white px-3.5 py-1.5 rounded-full dark:bg-[#282a2c] bg-white border border-emerald-500/40 hover:bg-emerald-500/20 transition-colors shadow-xs"
+                title="Cite paper directly in Writing Studio"
+              >
+                <Quote className="w-3.5 h-3.5 mr-1.5 text-emerald-400" />
+                <span>Cite in Studio</span>
+              </button>
+            )}
 
             {paper.doi_link && (
               <a

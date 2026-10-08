@@ -24,43 +24,51 @@ def generate_bibtex_entry(p: VaultPaperItem, idx: int) -> str:
 
 async def create_bulk_papers_zip(papers: List[VaultPaperItem]) -> io.BytesIO:
     """Download and bundle selected papers into an in-memory ZIP archive with manifest & .bib citations.
-    Guaranteed to return in <= 18 seconds to prevent Netlify/proxy 504 gateway timeouts."""
+    Uses aggressive micro-chunking (batches of 6-8 papers) with mirror cycling and 16-worker desktop concurrency."""
     zip_buffer = io.BytesIO()
 
-    # Concurrent bounded download (max 6 concurrent PDF streams with 8s per-item timeout)
-    semaphore = asyncio.Semaphore(6)
+    # Desktop workstation scale: 16 concurrent resolvers
+    semaphore = asyncio.Semaphore(16)
 
-    async def bounded_fetch(p: VaultPaperItem):
+    async def fetch_with_retry_and_cycle(p: VaultPaperItem):
         async with semaphore:
+            # Attempt 1: Standard race across all tiers
             try:
-                return await asyncio.wait_for(fetch_and_vault_paper(p), timeout=8.0)
+                vault_id, file_path = await asyncio.wait_for(fetch_and_vault_paper(p), timeout=25.0)
+                if file_path and os.path.exists(file_path):
+                    return vault_id, file_path
             except Exception as e:
-                print(f"[Bulk Download Skip] Failed or timed out on '{p.title[:40]}': {e}")
-                return None, None
+                print(f"[Bulk Download] Attempt 1 for '{p.title[:35]}': {e}")
 
-    # Run tasks with strict overall deadline (18.0s max)
-    tasks = [asyncio.create_task(bounded_fetch(p)) for p in papers]
-    results = []
-    try:
-        results = await asyncio.wait_for(
-            asyncio.gather(*tasks, return_exceptions=True),
-            timeout=18.0
-        )
-    except asyncio.TimeoutError:
-        print(f"[Bulk Download] Global 18s timeout reached for {len(papers)} papers. Packaging resolved documents...")
-        for t in tasks:
-            if not t.done():
-                t.cancel()
-        # Collect whatever tasks completed in time
-        results = []
-        for t in tasks:
-            if t.done() and not t.cancelled():
-                try:
-                    results.append(t.result())
-                except Exception:
-                    results.append((None, None))
-            else:
-                results.append((None, None))
+            # Attempt 2: Immediate cycle retry with backoff in case of transient mirror congestion
+            try:
+                await asyncio.sleep(0.5)
+                vault_id, file_path = await asyncio.wait_for(fetch_and_vault_paper(p), timeout=25.0)
+                if file_path and os.path.exists(file_path):
+                    return vault_id, file_path
+            except Exception as e:
+                print(f"[Bulk Download] Cycle attempt 2 for '{p.title[:35]}': {e}")
+
+            return None, None
+
+    # Chunk papers into micro-batches of 8 to prevent overwhelming any single connection/mirror
+    chunk_size = 8
+    results = [None] * len(papers)
+    for i in range(0, len(papers), chunk_size):
+        chunk_papers = papers[i:i + chunk_size]
+        chunk_tasks = [asyncio.create_task(fetch_with_retry_and_cycle(p)) for p in chunk_papers]
+        try:
+            chunk_results = await asyncio.gather(*chunk_tasks, return_exceptions=True)
+            for j, res in enumerate(chunk_results):
+                idx = i + j
+                if isinstance(res, tuple):
+                    results[idx] = res
+                else:
+                    results[idx] = (None, None)
+        except Exception as e:
+            print(f"[Bulk Download] Chunk {i // chunk_size} error: {e}")
+            for j in range(len(chunk_papers)):
+                results[i + j] = (None, None)
 
     manifest_entries = []
     bibtex_entries = []

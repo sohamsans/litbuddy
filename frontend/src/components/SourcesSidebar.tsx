@@ -280,9 +280,9 @@ export const SourcesSidebar: React.FC<SourcesSidebarProps> = ({
       {/* Sidebar Header */}
       <div className="p-3.5 border-b border-[#3c4043] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-[#8ab4f8]" />
-          <h2 className="text-xs font-semibold text-[#e3e3e3] uppercase tracking-wider">
-            NotebookLM Sources
+          <BookOpen className="w-4 h-4 text-zinc-300" />
+          <h2 className="text-xs font-semibold text-zinc-200 uppercase tracking-wider">
+            Literature Sources
           </h2>
         </div>
         <button

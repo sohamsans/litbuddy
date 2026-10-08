@@ -49,13 +49,24 @@ async def get_all_references(
     merged_papers = {}
 
     async with AsyncSessionLocal() as session:
+        from app.services.document_vault_service import VAULT_DIR
         # 1. Load Vaulted Papers
         stmt_vault = select(PaperDocumentVault)
         res_v = await session.execute(stmt_vault)
         vault_records = res_v.scalars().all()
         for v in vault_records:
             key = (v.doi.lower().strip() if v.doi else v.title.lower().strip())
-            file_exists = os.path.exists(v.file_path) if v.file_path else False
+            file_exists = False
+            if v.file_path:
+                norm_p = os.path.normpath(v.file_path)
+                if os.path.exists(norm_p):
+                    file_exists = True
+                else:
+                    # Also check relative to VAULT_DIR
+                    base_name = os.path.basename(norm_p)
+                    alt_path = os.path.join(VAULT_DIR, base_name)
+                    if os.path.exists(alt_path):
+                        file_exists = True
             merged_papers[key] = {
                 "id": v.id,
                 "title": v.title,
@@ -183,10 +194,24 @@ async def get_all_references(
     filtered = all_items
     if search:
         s_lower = search.lower().strip()
-        filtered = [
-            p for p in filtered
-            if s_lower in p["title"].lower() or any(s_lower in a.lower() for a in p["authors"]) or s_lower in (p.get("venue") or "").lower()
-        ]
+        def matches_search(p):
+            if s_lower in (p.get("title") or "").lower():
+                return True
+            if s_lower in (p.get("doi") or "").lower():
+                return True
+            if s_lower in (p.get("venue") or "").lower():
+                return True
+            authors = p.get("authors") or []
+            for a in authors:
+                if isinstance(a, str) and s_lower in a.lower():
+                    return True
+                elif isinstance(a, dict) and s_lower in str(a.get("name", "")).lower():
+                    return True
+            if s_lower in (p.get("abstract") or "").lower():
+                return True
+            return False
+
+        filtered = [p for p in filtered if matches_search(p)]
 
     if year_min:
         filtered = [p for p in filtered if p.get("year") and p["year"] >= year_min]

@@ -10,17 +10,26 @@ import { LiteratureTable } from './components/LiteratureTable';
 import { PaperDetailModal } from './components/PaperDetailModal';
 import { AssistantChatDrawer } from './components/AssistantChatDrawer';
 import { ExportBar } from './components/ExportBar';
-import { AuthModal } from './components/AuthModal';
+import { OfflineProfileModal } from './components/OfflineProfileModal';
+import { RollbackHistoryModal, RestoreSnapshot } from './components/RollbackHistoryModal';
 import { OnboardingKeyModal } from './components/OnboardingKeyModal';
 import { SourcesSidebar } from './components/SourcesSidebar';
 import { PaperChatArea } from './components/PaperChatArea';
 import { MasterReferenceManager } from './components/MasterReferenceManager';
 import { DownloadManagerView } from './components/DownloadManagerView';
+import { WritingStudio } from './components/writer/WritingStudio';
+import { FlowMapCanvas } from './components/flowmap/FlowMapCanvas';
+import { DataSheetStudio } from './components/DataSheetStudio';
+import { SkillSynthesizerModal } from './components/SkillSynthesizerModal';
+import { TabletBridgeModal } from './components/TabletBridgeModal';
 import { PdfViewerModal } from './components/PdfViewerModal';
 import { OnboardingTourModal } from './components/OnboardingTourModal';
 import { CookieBanner } from './components/CookieBanner';
 import { LegalModal } from './components/LegalModal';
+import { TopographicBackground } from './components/TopographicBackground';
 import { fetchHealthStatus, discoverPapers, runSelectedPipeline, runReviewPipeline, bulkDownloadPapers } from './services/api';
+import { FormulaStudio } from './components/calculator/FormulaStudio';
+import { StatisticsStudio } from './components/statistics/StatisticsStudio';
 import {
   HealthStatus,
   PipelineResponse,
@@ -39,7 +48,11 @@ const MainLayout: React.FC = () => {
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [stage, setStage] = useState<PipelineStage>('idle');
   const [viewMode, setViewMode] = useState<'matrix' | 'chat'>('matrix');
-  const [mainTab, setMainTab] = useState<'research' | 'references' | 'downloads'>('research');
+  const [mainTab, setMainTab] = useState<'research' | 'references' | 'downloads' | 'studio' | 'flow' | 'sheets' | 'formulas' | 'stats'>('research');
+
+  // Modals
+  const [isSkillModalOpen, setIsSkillModalOpen] = useState(false);
+  const [isTabletModalOpen, setIsTabletModalOpen] = useState(false);
 
   // PDF Viewer Modal
   const [viewerVaultId, setViewerVaultId] = useState<string | null>(null);
@@ -62,6 +75,16 @@ const MainLayout: React.FC = () => {
   const [activeCitationIndex, setActiveCitationIndex] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastRequestParams, setLastRequestParams] = useState<any>(null);
+
+  // Cross-View Citation & Formula Insertion State
+  const [pendingCitationPaper, setPendingCitationPaper] = useState<{
+    id: string;
+    title: string;
+    authors?: string[];
+    year?: number;
+    doi?: string;
+  } | null>(null);
+  const [pendingFormulaSnippet, setPendingFormulaSnippet] = useState<string | null>(null);
 
   const { activeProvider, activeModel, runtimeKeys } = useAuth();
 
@@ -96,25 +119,115 @@ const MainLayout: React.FC = () => {
     }
   }, []);
 
-  // Persist active review session whenever relevant state changes
-  useEffect(() => {
-    if (currentTopic || reviewResults || discoveredPapers.length > 0) {
+  // Rollback Modal State & Last Autosave Timestamp
+  const [isRollbackOpen, setIsRollbackOpen] = useState(false);
+  const [lastAutosaveTime, setLastAutosaveTime] = useState<Date>(new Date());
+
+  // Function to create a snapshot
+  const takeSnapshot = (label: string = 'Autosave Snapshot') => {
+    try {
+      const now = new Date();
+      let flowMapData = null;
+      let formulasData = null;
+      let dataSheetsData = null;
+
       try {
-        const session = {
-          currentTopic,
-          searchOffset,
-          discoveredPapers,
-          selectedPaperIds: Array.from(selectedPaperIds),
-          reviewResults,
-          viewMode,
-          mainTab
-        };
-        localStorage.setItem('litbuddy_active_session', JSON.stringify(session));
-      } catch (e) {
-        console.warn('Failed to persist active session:', e);
-      }
+        const flowCached = localStorage.getItem('litbuddy_flowmap_active_session');
+        if (flowCached) flowMapData = JSON.parse(flowCached);
+      } catch {}
+
+      try {
+        const formulaCached = localStorage.getItem('litbuddy_formula_blocks');
+        if (formulaCached) formulasData = JSON.parse(formulaCached);
+      } catch {}
+
+      try {
+        const sheetsCached = localStorage.getItem('litbuddy_datasheet_active_project');
+        if (sheetsCached) dataSheetsData = JSON.parse(sheetsCached);
+      } catch {}
+
+      const newSnapshot: RestoreSnapshot = {
+        id: `snap_${Date.now()}`,
+        timestamp: now.toISOString(),
+        label,
+        summary: currentTopic
+          ? `Topic: "${currentTopic}" (${discoveredPapers.length} papers in pool)`
+          : `Active session with ${discoveredPapers.length} papers`,
+        data: {
+          flowMap: flowMapData,
+          formulas: formulasData,
+          dataSheets: dataSheetsData,
+          researchSession: {
+            currentTopic,
+            searchOffset,
+            discoveredPapers,
+            selectedPaperIds: Array.from(selectedPaperIds),
+            reviewResults,
+            viewMode,
+            mainTab
+          }
+        }
+      };
+
+      const existingRaw = localStorage.getItem('litbuddy_restore_snapshots');
+      const existing: RestoreSnapshot[] = existingRaw ? JSON.parse(existingRaw) : [];
+      // Keep up to 25 rolling snapshots
+      const updated = [newSnapshot, ...existing.slice(0, 24)];
+      localStorage.setItem('litbuddy_restore_snapshots', JSON.stringify(updated));
+      setLastAutosaveTime(now);
+    } catch (e) {
+      console.warn('Failed to take autosave snapshot:', e);
     }
-  }, [currentTopic, searchOffset, discoveredPapers, selectedPaperIds, reviewResults, viewMode, mainTab]);
+  };
+
+  // Safe Exit Guard: Warn user before leaving if unsaved changes exist + final snapshot
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      takeSnapshot('Safe Exit Snapshot');
+      if (currentTopic || discoveredPapers.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [currentTopic, discoveredPapers, reviewResults, mainTab]);
+
+  // Periodic 30-Second Continuous Autosave
+  useEffect(() => {
+    const interval = setInterval(() => {
+      takeSnapshot('Continuous 30s Autosave');
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [currentTopic, discoveredPapers, reviewResults, mainTab]);
+
+  // Restore from past snapshot
+  const handleRollbackSnapshot = (snapshot: RestoreSnapshot) => {
+    try {
+      if (snapshot.data.researchSession) {
+        const rs = snapshot.data.researchSession;
+        if (rs.currentTopic !== undefined) setCurrentTopic(rs.currentTopic);
+        if (rs.searchOffset !== undefined) setSearchOffset(rs.searchOffset);
+        if (rs.discoveredPapers) setDiscoveredPapers(rs.discoveredPapers);
+        if (rs.selectedPaperIds) setSelectedPaperIds(new Set(rs.selectedPaperIds));
+        if (rs.reviewResults) setReviewResults(rs.reviewResults);
+        if (rs.viewMode) setViewMode(rs.viewMode);
+        if (rs.mainTab) setMainTab(rs.mainTab);
+      }
+      if (snapshot.data.flowMap) {
+        localStorage.setItem('litbuddy_flowmap_active_session', JSON.stringify(snapshot.data.flowMap));
+      }
+      if (snapshot.data.formulas) {
+        localStorage.setItem('litbuddy_formula_blocks', JSON.stringify(snapshot.data.formulas));
+      }
+      if (snapshot.data.dataSheets) {
+        localStorage.setItem('litbuddy_datasheet_active_project', JSON.stringify(snapshot.data.dataSheets));
+      }
+      alert(`Successfully restored snapshot from ${new Date(snapshot.timestamp).toLocaleTimeString()}`);
+    } catch (err: any) {
+      alert(`Rollback failed: ${err.message}`);
+    }
+  };
 
   const handleSearch = async (
     params: {
@@ -289,12 +402,20 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-[#131314] gemini-depth-bg text-[#e3e3e3] overflow-hidden">
+    <div className="min-h-screen flex bg-[#07080a] antigravity-bg text-[#ededed] overflow-hidden relative">
+      {/* Subtle Topographic Parallax Canvas */}
+      <TopographicBackground />
+
       {/* 1. Left Sidebar: Gemini Navigation & Chat History */}
       <Sidebar
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         onNewReview={resetToNewReview}
+        activeTab={mainTab}
+        onTabChange={setMainTab}
+        onOpenSkills={() => setIsSkillModalOpen(true)}
+        onOpenTutorial={() => setIsTourOpen(true)}
+        onOpenRollback={() => setIsRollbackOpen(true)}
         onSelectTopic={(topic) => {
           setCurrentTopic(topic);
           const norm = topic.toLowerCase().trim();
@@ -333,9 +454,14 @@ const MainLayout: React.FC = () => {
           activeTab={mainTab}
           onTabChange={setMainTab}
           onOpenTutorial={() => setIsTourOpen(true)}
+          onOpenSkills={() => setIsSkillModalOpen(true)}
+          onOpenTabletBridge={() => setIsTabletModalOpen(true)}
+          onOpenRollback={() => setIsRollbackOpen(true)}
+          lastAutosave={lastAutosaveTime}
         />
 
-        {mainTab === 'references' ? (
+        {/* Persistent Tab Containers: never unmount to preserve flowmaps, formulas, and studio state */}
+        <div className={mainTab === 'references' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <MasterReferenceManager
             onOpenPdf={(vaultId, title) => {
               setViewerVaultId(vaultId);
@@ -347,8 +473,20 @@ const MainLayout: React.FC = () => {
               setViewMode('chat');
               setMainTab('research');
             }}
+            onCitePaper={(paper) => {
+              setPendingCitationPaper({
+                id: paper.id,
+                title: paper.title,
+                authors: paper.authors,
+                year: paper.year,
+                doi: paper.doi
+              });
+              setMainTab('studio');
+            }}
           />
-        ) : mainTab === 'downloads' ? (
+        </div>
+
+        <div className={mainTab === 'downloads' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
           <DownloadManagerView
             onOpenPdf={(vaultId, title) => {
               setViewerVaultId(vaultId);
@@ -356,162 +494,207 @@ const MainLayout: React.FC = () => {
               setIsViewerOpen(true);
             }}
           />
-        ) : (
-          <>
-            {/* View Toggle Bar (Only shown once papers exist) */}
-            {(reviewResults && reviewResults.papers.length > 0) && (
-              <div className="px-6 py-2 border-b border-[#3c4043]/50 flex items-center justify-between bg-[#1e1f20]/40 backdrop-blur-xs">
-                <div className="flex items-center gap-1 bg-[#171718] p-1 rounded-xl border border-[#3c4043]">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('chat')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                      viewMode === 'chat'
-                        ? 'bg-[#8ab4f8] text-[#131314]'
-                        : 'text-[#9aa0a6] hover:text-[#e3e3e3]'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>Grounded Chat (KaTeX)</span>
-                  </button>
+        </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setViewMode('matrix')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
-                      viewMode === 'matrix'
-                        ? 'bg-[#8ab4f8] text-[#131314]'
-                        : 'text-[#9aa0a6] hover:text-[#e3e3e3]'
-                    }`}
-                  >
-                    <Table className="w-3.5 h-3.5" />
-                    <span>Review Matrix</span>
-                  </button>
-                </div>
+        <div className={mainTab === 'studio' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          <WritingStudio
+            papers={reviewResults?.papers || []}
+            candidatePapers={discoveredPapers || []}
+            currentTopic={currentTopic}
+            incomingCitation={pendingCitationPaper}
+            incomingFormulaSnippet={pendingFormulaSnippet}
+            onClearIncomingCitation={() => setPendingCitationPaper(null)}
+            onClearIncomingFormula={() => setPendingFormulaSnippet(null)}
+          />
+        </div>
+
+        <div className={mainTab === 'flow' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          <FlowMapCanvas
+            papers={reviewResults?.papers || []}
+            candidatePapers={discoveredPapers || []}
+            onOpenPdf={(vaultId, title) => {
+              setViewerVaultId(vaultId);
+              setViewerTitle(title);
+              setIsViewerOpen(true);
+            }}
+            onCitePaper={(paper) => {
+              setPendingCitationPaper(paper);
+              setMainTab('studio');
+            }}
+          />
+        </div>
+
+        <div className={mainTab === 'formulas' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          <FormulaStudio
+            onInsertToLatex={(snippet) => {
+              setPendingFormulaSnippet(snippet);
+              setMainTab('studio');
+            }}
+          />
+        </div>
+
+        <div className={mainTab === 'stats' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          <StatisticsStudio />
+        </div>
+
+        <div className={mainTab === 'sheets' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          <DataSheetStudio />
+        </div>
+
+        <div className={mainTab === 'research' ? 'flex-1 flex flex-col min-h-0' : 'hidden'}>
+          {/* View Toggle Bar (Only shown once papers exist) */}
+          {(reviewResults && reviewResults.papers.length > 0) && (
+            <div className="px-6 py-2 border-b border-[#3c4043]/50 flex items-center justify-between bg-[#1e1f20]/40 backdrop-blur-xs">
+              <div className="flex items-center gap-1 bg-[#171718] p-1 rounded-xl border border-[#3c4043]">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('chat')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    viewMode === 'chat'
+                      ? 'bg-[#8ab4f8] text-[#131314]'
+                      : 'text-[#9aa0a6] hover:text-[#e3e3e3]'
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  <span>Grounded Chat (KaTeX)</span>
+                </button>
 
                 <button
                   type="button"
-                  onClick={() => setIsSourcesSidebarOpen(!isSourcesSidebarOpen)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-[#8ab4f8] transition-colors"
+                  onClick={() => setViewMode('matrix')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    viewMode === 'matrix'
+                      ? 'bg-[#8ab4f8] text-[#131314]'
+                      : 'text-[#9aa0a6] hover:text-[#e3e3e3]'
+                  }`}
                 >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>{isSourcesSidebarOpen ? 'Hide Sources' : 'Open Sources & Citations'}</span>
+                  <Table className="w-3.5 h-3.5" />
+                  <span>Review Matrix</span>
                 </button>
               </div>
-            )}
 
-            {/* Dynamic Center Stage: Chat or Matrix or Discovery */}
-            {viewMode === 'chat' && reviewResults && reviewResults.papers.length > 0 ? (
-              <PaperChatArea
-                key={currentTopic}
-                topic={currentTopic}
-                synthesizedPapers={reviewResults.papers}
-                candidatePool={discoveredPapers}
-                onOpenSources={() => setIsSourcesSidebarOpen(true)}
-                onSelectCitation={(idx) => {
-                  setActiveCitationIndex(idx);
-                  const target = reviewResults.papers[idx - 1];
-                  if (target) setSelectedReviewPaper(target);
-                }}
-                onSearchQuery={(q) => {
-                  const cleanQ = q.replace(/(state of the art benchmarks|comparative analysis|comparative benchmarks)/gi, '').trim() || q;
-                  handleSearch({
-                    topic: cleanQ,
-                    maxResults: 25,
-                    noYearConstraint: true,
-                    relevanceThreshold: 4,
-                    mode: 'discover'
-                  }, true);
-                }}
-              />
-            ) : (
-          <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-8 py-6 flex flex-col overflow-y-auto">
-            {/* Hero Section & Gemini Capsule Input */}
-            {(!reviewResults && discoveredPapers.length === 0 && stage === 'idle') && (
-              <div className="flex-1 flex flex-col justify-center items-center my-auto min-h-[50vh]">
-                <GeminiInputBar
-                  onSearch={handleSearch}
-                  isLoading={false}
-                  initialTopic={currentTopic}
-                  onOpenAssistant={() => setIsAssistantOpen(true)}
-                />
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => setIsSourcesSidebarOpen(!isSourcesSidebarOpen)}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-[#8ab4f8] transition-colors"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>{isSourcesSidebarOpen ? 'Hide Sources' : 'Open Sources & Citations'}</span>
+              </button>
+            </div>
+          )}
 
-            {/* Compact Top Search Bar */}
-            {(discoveredPapers.length > 0 || reviewResults || stage !== 'idle') && (
-              <div className="mb-6">
-                <GeminiInputBar
-                  onSearch={handleSearch}
-                  isLoading={stage === 'discovering' || stage === 'triaging' || stage === 'extracting'}
-                  initialTopic={currentTopic}
-                  onOpenAssistant={() => setIsAssistantOpen(true)}
-                />
-              </div>
-            )}
-
-            {/* Gemini Minimal Thinking Dropdown */}
-            <GeminiThinking stage={stage} />
-
-            {/* Error Notice */}
-            {error && (
-              <div className="bg-[#f28b82]/10 border border-[#f28b82]/30 rounded-2xl p-4 my-4 flex items-start gap-3 text-[#f28b82] text-xs animate-fadeIn">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold">Review Pipeline Notice</p>
-                  <p>{error}</p>
+          {/* Dynamic Center Stage: Chat or Matrix or Discovery */}
+          {viewMode === 'chat' && reviewResults && reviewResults.papers.length > 0 ? (
+            <PaperChatArea
+              key={currentTopic}
+              topic={currentTopic}
+              synthesizedPapers={reviewResults.papers}
+              candidatePool={discoveredPapers}
+              onOpenSources={() => setIsSourcesSidebarOpen(true)}
+              onSelectCitation={(idx) => {
+                setActiveCitationIndex(idx);
+                const target = reviewResults.papers[idx - 1];
+                if (target) setSelectedReviewPaper(target);
+              }}
+              onSearchQuery={(q) => {
+                const cleanQ = q.replace(/(state of the art benchmarks|comparative analysis|comparative benchmarks)/gi, '').trim() || q;
+                handleSearch({
+                  topic: cleanQ,
+                  maxResults: 25,
+                  noYearConstraint: true,
+                  relevanceThreshold: 4,
+                  mode: 'discover'
+                }, true);
+              }}
+            />
+          ) : (
+            <main className="flex-1 max-w-6xl w-full mx-auto px-4 sm:px-8 py-6 flex flex-col overflow-y-auto">
+              {/* Hero Section & Gemini Capsule Input */}
+              {(!reviewResults && discoveredPapers.length === 0 && stage === 'idle') && (
+                <div className="flex-1 flex flex-col justify-center items-center my-auto min-h-[50vh]">
+                  <GeminiInputBar
+                    onSearch={handleSearch}
+                    isLoading={false}
+                    initialTopic={currentTopic}
+                    onOpenAssistant={() => setIsAssistantOpen(true)}
+                  />
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Step 1: Candidate Preview Table */}
-            {discoveredPapers.length > 0 && !reviewResults && (
-              <div className="animate-fadeIn">
-                <CandidatePreviewTable
-                  papers={discoveredPapers}
-                  selectedIds={selectedPaperIds}
-                  onToggleSelect={(id) => {
-                    setSelectedPaperIds((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(id)) next.delete(id);
-                      else next.add(id);
-                      return next;
-                    });
-                  }}
-                  onSelectAll={() => setSelectedPaperIds(new Set(discoveredPapers.map((p) => p.id)))}
-                  onDeselectAll={() => setSelectedPaperIds(new Set())}
-                  onProceedToSynthesis={handleProceedToSynthesis}
-                  onBulkDownload={handleBulkDownload}
-                  isProcessing={stage === 'triaging' || stage === 'extracting'}
-                />
-              </div>
-            )}
+              {/* Compact Top Search Bar */}
+              {(discoveredPapers.length > 0 || reviewResults || stage !== 'idle') && (
+                <div className="mb-6">
+                  <GeminiInputBar
+                    onSearch={handleSearch}
+                    isLoading={stage === 'discovering' || stage === 'triaging' || stage === 'extracting'}
+                    initialTopic={currentTopic}
+                    onOpenAssistant={() => setIsAssistantOpen(true)}
+                  />
+                </div>
+              )}
 
-            {/* Step 2: Final Synthesized Review Matrix */}
-            {reviewResults && reviewResults.papers.length > 0 && (
-              <div className="animate-fadeIn">
-                <ExportBar papers={reviewResults.papers} topic={currentTopic} />
-                <LiteratureTable
-                  papers={reviewResults.papers}
-                  onSelectPaper={(paper) => setSelectedReviewPaper(paper)}
-                />
-              </div>
-            )}
+              {/* Gemini Minimal Thinking Dropdown */}
+              <GeminiThinking stage={stage} />
 
-            {/* Empty State */}
-            {reviewResults && reviewResults.papers.length === 0 && stage === 'completed' && (
-              <div className="rounded-2xl bg-[#1e1f20] border border-[#3c4043] p-12 text-center text-[#9aa0a6] animate-fadeIn my-auto">
-                <BookOpen className="w-10 h-10 mx-auto text-[#9aa0a6] mb-3" />
-                <h4 className="text-sm font-semibold text-[#e3e3e3] mb-1">No Relevant Papers Found</h4>
-                <p className="text-xs max-w-sm mx-auto">
-                  Try broadening your query, lowering the minimum relevance threshold, or selecting a wider publication window.
-                </p>
-              </div>
-            )}
-          </main>
-        )}
-          </>
-        )}
+              {/* Error Notice */}
+              {error && (
+                <div className="bg-[#f28b82]/10 border border-[#f28b82]/30 rounded-2xl p-4 my-4 flex items-start gap-3 text-[#f28b82] text-xs animate-fadeIn">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold">Review Pipeline Notice</p>
+                    <p>{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 1: Candidate Preview Table */}
+              {discoveredPapers.length > 0 && !reviewResults && (
+                <div className="animate-fadeIn">
+                  <CandidatePreviewTable
+                    papers={discoveredPapers}
+                    selectedIds={selectedPaperIds}
+                    onToggleSelect={(id) => {
+                      setSelectedPaperIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else next.add(id);
+                        return next;
+                      });
+                    }}
+                    onSelectAll={() => setSelectedPaperIds(new Set(discoveredPapers.map((p) => p.id)))}
+                    onDeselectAll={() => setSelectedPaperIds(new Set())}
+                    onProceedToSynthesis={handleProceedToSynthesis}
+                    onBulkDownload={handleBulkDownload}
+                    isProcessing={stage === 'triaging' || stage === 'extracting'}
+                  />
+                </div>
+              )}
+
+              {/* Step 2: Final Synthesized Review Matrix */}
+              {reviewResults && reviewResults.papers.length > 0 && (
+                <div className="animate-fadeIn">
+                  <ExportBar papers={reviewResults.papers} topic={currentTopic} />
+                  <LiteratureTable
+                    papers={reviewResults.papers}
+                    onSelectPaper={(paper) => setSelectedReviewPaper(paper)}
+                  />
+                </div>
+              )}
+
+              {/* Empty State */}
+              {reviewResults && reviewResults.papers.length === 0 && stage === 'completed' && (
+                <div className="rounded-2xl bg-[#1e1f20] border border-[#3c4043] p-12 text-center text-[#9aa0a6] animate-fadeIn my-auto">
+                  <BookOpen className="w-10 h-10 mx-auto text-[#9aa0a6] mb-3" />
+                  <h4 className="text-sm font-semibold text-[#e3e3e3] mb-1">No Relevant Papers Found</h4>
+                  <p className="text-xs max-w-sm mx-auto">
+                    Try broadening your query, lowering the minimum relevance threshold, or selecting a wider publication window.
+                  </p>
+                </div>
+              )}
+            </main>
+          )}
+        </div>
       </div>
 
       {/* 3. Right Sidebar: NotebookLM Sources, Pool & Reference Manager */}
@@ -547,6 +730,10 @@ const MainLayout: React.FC = () => {
       <PaperDetailModal
         paper={selectedReviewPaper}
         onClose={() => setSelectedReviewPaper(null)}
+        onCitePaper={(paper) => {
+          setPendingCitationPaper(paper);
+          setMainTab('studio');
+        }}
       />
 
       <AssistantChatDrawer
@@ -590,7 +777,32 @@ const MainLayout: React.FC = () => {
         onClose={() => setIsTourOpen(false)}
       />
 
-      <AuthModal />
+      {/* AI Skills & Agents Modal */}
+      <SkillSynthesizerModal
+        isOpen={isSkillModalOpen}
+        onClose={() => setIsSkillModalOpen(false)}
+        onApplySkill={(skill) => {
+          setIsAssistantOpen(true);
+        }}
+      />
+
+      {/* Wireless Tablet Stylus Pairing Modal */}
+      <TabletBridgeModal
+        isOpen={isTabletModalOpen}
+        onClose={() => setIsTabletModalOpen(false)}
+      />
+
+      {/* Offline Researcher Profile Modal */}
+      <OfflineProfileModal />
+
+      {/* Rollback & Continuous Snapshot Modal */}
+      <RollbackHistoryModal
+        isOpen={isRollbackOpen}
+        onClose={() => setIsRollbackOpen(false)}
+        onRollback={handleRollbackSnapshot}
+        onTakeManualSnapshot={() => takeSnapshot('Manual Researcher Snapshot')}
+      />
+
       <OnboardingKeyModal />
     </div>
   );

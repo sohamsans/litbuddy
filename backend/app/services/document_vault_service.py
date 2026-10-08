@@ -343,6 +343,9 @@ async def fetch_and_vault_paper(paper: VaultPaperItem) -> Tuple[Optional[str], O
     from app.services.resolvers.libgen_resolver import resolve_libgen
     from app.services.resolvers.scihub_resolver import resolve_scihub as resolve_scihub_new
     from app.services.resolvers.publisher_scraper import resolve_publisher_landing
+    from app.services.resolvers.gutenberg_resolver import resolve_gutenberg
+    from app.services.resolvers.ipfs_resolver import resolve_ipfs_scimag
+    from app.services.resolvers.zenodo_ssrn_resolver import resolve_zenodo, resolve_ssrn
 
     vault_id = compute_vault_id(paper.doi, paper.title)
 
@@ -364,7 +367,7 @@ async def fetch_and_vault_paper(paper: VaultPaperItem) -> Tuple[Optional[str], O
     pdf_bytes: Optional[bytes] = None
     source_resolved: str = "unknown"
 
-    async with httpx.AsyncClient(timeout=28.0, follow_redirects=True, headers=BROWSER_HEADERS) as client:
+    async with httpx.AsyncClient(timeout=32.0, follow_redirects=True, headers=BROWSER_HEADERS) as client:
 
         # ── STAGE 1: Legal Open Access (Concurrent Race) ──────────────────────
         stage1_resolvers = []
@@ -387,6 +390,16 @@ async def fetch_and_vault_paper(paper: VaultPaperItem) -> Tuple[Optional[str], O
             stage1_resolvers.append((
                 lambda: resolve_core(paper.doi, paper.title, client),
                 "core"
+            ))
+        if paper.doi or paper.title:
+            stage1_resolvers.append((
+                lambda: resolve_zenodo(paper.doi, paper.title, client),
+                "zenodo"
+            ))
+        if paper.doi:
+            stage1_resolvers.append((
+                lambda: resolve_ssrn(paper.doi, client),
+                "ssrn"
             ))
         if paper.doi:
             stage1_resolvers.append((
@@ -428,22 +441,25 @@ async def fetch_and_vault_paper(paper: VaultPaperItem) -> Tuple[Optional[str], O
             if stage2_resolvers:
                 pdf_bytes, source_resolved = await _race_resolvers(stage2_resolvers, "Stage2 Publisher Scraper")
 
-        # ── STAGE 3: Archival Sources (Concurrent Race) ──────────────────────
+        # ── STAGE 3: Archival Sources & Classic Repositories (Concurrent Race) ───
         if not pdf_bytes:
+            first_author = paper.authors[0] if paper.authors else None
             stage3_resolvers = [
                 (lambda: resolve_archive_scholar(paper.doi, paper.title, client), "archive_scholar"),
                 (lambda: resolve_archive_org_pdf(paper.title, paper.doi, client), "archive_org"),
+                (lambda: resolve_gutenberg(paper.title, first_author, client), "gutenberg_openlib"),
                 (lambda: resolve_dokumen_pdf(paper.title, client), "dokumen_pub"),
             ]
-            pdf_bytes, source_resolved = await _race_resolvers(stage3_resolvers, "Stage3 Archival")
+            pdf_bytes, source_resolved = await _race_resolvers(stage3_resolvers, "Stage3 Archival & Classics")
 
-        # ── STAGE 4: Shadow Archives (Concurrent Race) ────────────────────────
+        # ── STAGE 4: P2P, IPFS Gateways & Shadow Archives (Concurrent Race) ────
         if not pdf_bytes and paper.doi:
             stage4_resolvers = [
+                (lambda: resolve_ipfs_scimag(None, paper.doi, client), "ipfs_p2p"),
                 (lambda: resolve_scihub_new(paper.doi, client), "scihub"),
                 (lambda: resolve_libgen(paper.doi, paper.title, client), "libgen"),
             ]
-            pdf_bytes, source_resolved = await _race_resolvers(stage4_resolvers, "Stage4 Shadow Archives")
+            pdf_bytes, source_resolved = await _race_resolvers(stage4_resolvers, "Stage4 P2P & Shadow Archives")
 
     if not pdf_bytes:
         print(f"[Document Vault] Failed all tiers for '{paper.title[:50]}'")

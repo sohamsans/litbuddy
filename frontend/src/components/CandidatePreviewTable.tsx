@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { RawPaperMetadata } from '../types';
-import { CheckSquare, Square, ExternalLink, Search, ChevronDown, ChevronUp, ArrowRight } from 'lucide-react';
+import { CheckSquare, Square, ExternalLink, Search, ChevronDown, ChevronUp, ArrowRight, Download, Filter } from 'lucide-react';
 import { TagBadge } from './TagBadge';
 
 interface CandidatePreviewTableProps {
@@ -65,36 +65,38 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
   };
 
   return (
-    <div className="rounded-2xl dark:bg-[#1e1f20] bg-white border dark:border-[#3c4043] border-[#dadce0] shadow-md overflow-hidden mb-8 transition-all">
-      {/* Control Bar */}
-      <div className="p-4 sm:px-5 sm:py-3.5 dark:bg-[#18191a] bg-[#f8fafd] border-b dark:border-[#3c4043] border-[#dadce0] flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div className="w-full bg-zinc-900/40 border border-zinc-800 rounded-xl shadow-xs overflow-hidden mb-8 transition-all">
+      {/* Native Desktop Workbench Toolbar */}
+      <div className="sticky top-0 z-10 px-5 py-3 bg-zinc-900/90 backdrop-blur-md border-b border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
           <button
+            type="button"
             onClick={allSelected ? onDeselectAll : onSelectAll}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full dark:bg-[#282a2c] bg-white border dark:border-[#3c4043] border-slate-300 dark:text-[#e3e3e3] text-[#1f1f1f] text-xs font-medium transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 hover:bg-zinc-800 text-zinc-200 text-xs font-medium transition cursor-pointer"
           >
             {allSelected ? (
-              <CheckSquare className="w-3.5 h-3.5 text-[#8ab4f8]" />
+              <CheckSquare className="w-3.5 h-3.5 text-zinc-100" />
             ) : (
-              <Square className="w-3.5 h-3.5 text-[#9aa0a6]" />
+              <Square className="w-3.5 h-3.5 text-zinc-500" />
             )}
-            <span>{allSelected ? 'Deselect all' : `Select all (${papers.length})`}</span>
+            <span>{allSelected ? 'Deselect All' : `Select All (${papers.length})`}</span>
           </button>
 
-          <span className="text-xs dark:text-[#9aa0a6] text-[#5f6368]">
-            <strong className="dark:text-[#e3e3e3] text-[#1f1f1f]">{selectedIds.size}</strong> of {papers.length} selected
+          <span className="text-xs text-zinc-400 font-mono">
+            <strong className="text-zinc-200 font-semibold">{selectedIds.size}</strong> of {papers.length} selected
           </span>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap sm:flex-nowrap">
-          <div className="relative flex-1 sm:w-56">
-            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-[#9aa0a6] pointer-events-none" />
+        <div className="flex items-center gap-2.5 w-full sm:w-auto flex-wrap sm:flex-nowrap">
+          {/* Quick Filter */}
+          <div className="relative flex-1 sm:w-60">
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-zinc-500 pointer-events-none" />
             <input
               type="text"
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
               placeholder="Filter candidates..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-full dark:bg-[#131314] bg-white border dark:border-[#3c4043] border-slate-300 text-xs dark:text-[#e3e3e3] text-[#1f1f1f] placeholder-[#9aa0a6] focus:outline-none focus:border-[#8ab4f8]"
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-hidden focus:border-zinc-700 focus:ring-1 focus:ring-zinc-700"
             />
           </div>
 
@@ -103,16 +105,17 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
               type="button"
               onClick={handleDownloadZip}
               disabled={selectedIds.size === 0 || isZipping}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-[#282a2c] hover:bg-[#3c4043] border border-[#3c4043] text-xs font-medium text-[#8ab4f8] disabled:opacity-40 transition-all shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-medium text-zinc-200 disabled:opacity-40 transition shrink-0 cursor-pointer"
               title="Download all selected papers as a single .zip archive"
             >
               {isZipping ? (
                 <>
-                  <div className="w-3 h-3 border-2 border-[#8ab4f8]/30 border-t-[#8ab4f8] rounded-full animate-spin" />
+                  <div className="w-3 h-3 border-2 border-zinc-400 border-t-zinc-100 rounded-full animate-spin" />
                   <span>Zipping...</span>
                 </>
               ) : (
                 <>
+                  <Download className="w-3.5 h-3.5 text-zinc-400" />
                   <span>Download ZIP ({selectedIds.size})</span>
                 </>
               )}
@@ -120,18 +123,19 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
           )}
 
           <button
+            type="button"
             onClick={onProceedToSynthesis}
             disabled={selectedIds.size === 0 || isProcessing}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-[#8ab4f8] hover:bg-[#a8c7fa] disabled:opacity-40 text-[#131314] text-xs font-semibold shadow-xs transition-all shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-lg bg-zinc-100 hover:bg-white disabled:opacity-40 text-zinc-950 text-xs font-semibold shadow-xs transition shrink-0 cursor-pointer"
           >
             {isProcessing ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-[#131314]/30 border-t-[#131314] rounded-full animate-spin" />
+                <div className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-zinc-900 rounded-full animate-spin" />
                 <span>Synthesizing...</span>
               </>
             ) : (
               <>
-                <span>Synthesize selected ({selectedIds.size})</span>
+                <span>Synthesize Selected ({selectedIds.size})</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </>
             )}
@@ -139,10 +143,10 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
         </div>
       </div>
 
-      {/* Papers List */}
-      <div className="divide-y dark:divide-[#282a2c] divide-slate-100 max-h-[550px] overflow-y-auto">
+      {/* Unified Paper Items (Full-Bleed Desktop View, No Nested Scroll Container) */}
+      <div className="divide-y divide-zinc-800/80">
         {filteredPapers.length === 0 ? (
-          <div className="p-8 text-center text-xs dark:text-[#9aa0a6] text-[#5f6368]">
+          <div className="p-12 text-center text-xs text-zinc-500">
             No papers match your filter criteria.
           </div>
         ) : (
@@ -153,53 +157,53 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
             return (
               <div
                 key={paper.id}
-                className={`p-4 transition-colors flex items-start gap-3.5 ${
-                  isSelected ? 'dark:bg-[#8ab4f8]/5 bg-blue-50/40' : 'hover:dark:bg-[#282a2c]/50 hover:bg-slate-50'
+                className={`p-4 sm:p-5 transition-colors flex items-start gap-4 ${
+                  isSelected ? 'bg-zinc-800/30' : 'hover:bg-zinc-800/20'
                 }`}
               >
                 {/* Checkbox */}
                 <button
                   type="button"
                   onClick={() => onToggleSelect(paper.id)}
-                  className="mt-0.5 dark:text-[#9aa0a6] text-[#5f6368] hover:text-[#8ab4f8] cursor-pointer shrink-0"
+                  className="mt-0.5 text-zinc-400 hover:text-zinc-200 cursor-pointer shrink-0"
                 >
                   {isSelected ? (
-                    <CheckSquare className="w-4 h-4 text-[#8ab4f8]" />
+                    <CheckSquare className="w-4 h-4 text-zinc-200" />
                   ) : (
-                    <Square className="w-4 h-4" />
+                    <Square className="w-4 h-4 text-zinc-600" />
                   )}
                 </button>
 
                 {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="text-xs font-mono dark:text-[#5f6368] text-[#9aa0a6]">#{idx + 1}</span>
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-mono text-zinc-500">#{idx + 1}</span>
                     <TagBadge type={paper.source} />
                     {paper.is_oa && <TagBadge type="oa_pdf" />}
                     {paper.year && (
-                      <span className="text-[11px] dark:text-[#9aa0a6] text-[#5f6368]">
+                      <span className="text-[11px] text-zinc-400 font-mono">
                         {paper.year}
                       </span>
                     )}
                   </div>
 
-                  <h3 className="text-sm font-medium dark:text-[#e3e3e3] text-[#1f1f1f] leading-snug hover:text-[#8ab4f8] transition-colors">
+                  <h3 className="text-sm font-medium text-zinc-100 leading-snug hover:text-white transition-colors">
                     {paper.doi ? (
                       <a
                         href={`https://doi.org/${paper.doi}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 hover:underline"
+                        className="inline-flex items-center gap-1.5 hover:underline"
                       >
                         <span>{paper.title}</span>
-                        <ExternalLink className="w-3 h-3 text-[#9aa0a6] shrink-0 inline" />
+                        <ExternalLink className="w-3 h-3 text-zinc-500 shrink-0 inline" />
                       </a>
                     ) : (
                       paper.title
                     )}
                   </h3>
 
-                  <p className="text-xs dark:text-[#9aa0a6] text-[#5f6368] mt-1 line-clamp-1">
+                  <p className="text-xs text-zinc-400 line-clamp-1">
                     {paper.authors.length > 0 ? paper.authors.join(', ') : 'Authors not specified'}
                     {paper.venue && ` • ${paper.venue}`}
                   </p>
@@ -208,7 +212,7 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
                   {paper.abstract && (
                     <div className="mt-2 text-xs">
                       <p
-                        className={`dark:text-[#c4c7c5] text-[#444746] leading-relaxed ${
+                        className={`text-zinc-400 leading-relaxed ${
                           isAbstractExpanded ? '' : 'line-clamp-2'
                         }`}
                       >
@@ -217,7 +221,7 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
                       <button
                         type="button"
                         onClick={() => toggleAbstract(paper.id)}
-                        className="mt-1 text-[11px] text-[#8ab4f8] hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
+                        className="mt-1 text-[11px] text-zinc-300 hover:text-white hover:underline font-medium inline-flex items-center gap-0.5 cursor-pointer"
                       >
                         {isAbstractExpanded ? (
                           <>

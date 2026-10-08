@@ -11,7 +11,11 @@ import {
   SavedSearchItem,
   ChatHistoryRecord,
   VaultStatusResponse,
-  RefinedSynthesisResponse
+  RefinedSynthesisResponse,
+  ManuscriptItem,
+  ManuscriptSaveRequest,
+  ManuscriptResponse,
+  ManuscriptListResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -280,8 +284,11 @@ export async function getSavedSearches(): Promise<SavedSearchItem[]> {
   return res.json();
 }
 
-export async function deleteSavedSearch(queryHash: string): Promise<void> {
-  const res = await fetch(`${API_BASE}/auth/saved-searches/${queryHash}`, {
+export async function deleteSavedSearch(queryHash: string, topic?: string): Promise<void> {
+  const url = topic
+    ? `${API_BASE}/auth/saved-searches/${encodeURIComponent(queryHash)}?topic=${encodeURIComponent(topic)}`
+    : `${API_BASE}/auth/saved-searches/${encodeURIComponent(queryHash)}`;
+  const res = await fetch(url, {
     method: 'DELETE'
   });
   if (!res.ok) {
@@ -467,6 +474,55 @@ export async function exportReferences(format: 'bibtex' | 'ris' = 'bibtex', pape
   window.URL.revokeObjectURL(url);
 }
 
+// ----------------- Manuscript & Note Studio APIs -----------------
+
+export async function fetchManuscripts(): Promise<ManuscriptListResponse> {
+  const response = await fetch(`${API_BASE}/notes`, {
+    headers: { ...getAuthHeader() }
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to load manuscripts (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function fetchManuscriptById(id: string): Promise<ManuscriptResponse> {
+  const response = await fetch(`${API_BASE}/notes/${id}`, {
+    headers: { ...getAuthHeader() }
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to load manuscript (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function saveManuscript(request: ManuscriptSaveRequest): Promise<ManuscriptResponse> {
+  const response = await fetch(`${API_BASE}/notes`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...getAuthHeader()
+    },
+    body: JSON.stringify(request)
+  });
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to save manuscript (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function deleteManuscript(id: string): Promise<{ success: boolean; id: string }> {
+  const response = await fetch(`${API_BASE}/notes/${id}`, {
+    method: 'DELETE',
+    headers: { ...getAuthHeader() }
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to delete manuscript (${response.status})`);
+  }
+  return response.json();
+}
+
 export const api = {
   fetchHealthStatus,
   discoverPapers,
@@ -496,6 +552,11 @@ export const api = {
   openVaultFolder,
   deleteVaultedFile,
   getAllReferences,
-  exportReferences
+  exportReferences,
+  fetchManuscripts,
+  fetchManuscriptById,
+  saveManuscript,
+  deleteManuscript
 };
+
 

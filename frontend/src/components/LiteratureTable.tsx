@@ -248,7 +248,7 @@ export const LiteratureTable: React.FC<LiteratureTableProps> = ({ papers, onSele
 
       {/* Table Responsive Wrapper */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-xs">
+        <table className="w-full min-w-[900px] text-left border-collapse text-xs">
           <thead>
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="dark:bg-[#18191a] bg-slate-50 border-b dark:border-[#2d2f31] border-slate-200 text-[11px] uppercase tracking-wider dark:text-[#9aa0a6] text-[#5f6368] font-medium">

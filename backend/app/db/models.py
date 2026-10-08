@@ -103,3 +103,34 @@ class ChatHistory(Base):
     messages_json = Column(Text, nullable=False) # JSON list of messages
     created_at = Column(DateTime, default=get_utc_now)
     updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+class ManuscriptNote(Base):
+    """Local Research Writing Studio manuscripts (Rich Docs & LaTeX)."""
+    __tablename__ = "manuscripts"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), index=True, nullable=True)
+    title = Column(String(255), default="Untitled Manuscript")
+    mode = Column(String(20), default="rich") # 'rich' (word/docs) or 'latex' (overleaf)
+    content = Column(Text, default="") # Markdown/rich text
+    latex_source = Column(Text, default="") # Full LaTeX source code
+    associated_topic = Column(String(255), nullable=True)
+    citations_json = Column(Text, nullable=True) # JSON list of cited DOI / keys
+    word_count = Column(Integer, default=0)
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+
+class FlowCanvas(Base):
+    """Flow Map Canvas state containing multi-canvas topics, nodes, and intentional edges."""
+    __tablename__ = "flow_canvases"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String(36), ForeignKey("users.id"), index=True, nullable=True)
+    title = Column(String(255), default="Untitled Flow Map")
+    topic = Column(String(255), default="General Research")
+    nodes_json = Column(Text, default="[]")
+    edges_json = Column(Text, default="[]")
+    viewport_json = Column(Text, default='{"x": 0, "y": 0, "zoom": 1}')
+    created_at = Column(DateTime, default=get_utc_now)
+    updated_at = Column(DateTime, default=get_utc_now, onupdate=get_utc_now)
+

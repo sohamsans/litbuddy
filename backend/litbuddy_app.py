@@ -163,19 +163,56 @@ SPLASH_HTML = f"""<!DOCTYPE html>
 def _start_backend():
     """Start the FastAPI/Uvicorn server in a background daemon thread with logging."""
     log_path = os.path.join(APP_DATA_DIR, "backend_startup.log")
+
+    # In windowless PyInstaller (console=False), sys.stdout/sys.stderr can be None,
+    # causing uvicorn's ColourizedFormatter to fail on stream.isatty.
+    class NullWriter:
+        def write(self, s): pass
+        def flush(self): pass
+        def isatty(self): return False
+
+    if sys.stdout is None:
+        sys.stdout = NullWriter()
+    if sys.stderr is None:
+        sys.stderr = NullWriter()
+
+    # Plain logging config dictionary without uvicorn's ColourizedFormatter
+    safe_log_config = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+            },
+        },
+        "handlers": {
+            "default": {
+                "class": "logging.NullHandler",
+            },
+        },
+        "loggers": {
+            "uvicorn": {"handlers": ["default"], "level": "WARNING"},
+            "uvicorn.error": {"handlers": ["default"], "level": "WARNING"},
+            "uvicorn.access": {"handlers": ["default"], "level": "WARNING"},
+        },
+    }
+
     try:
         with open(log_path, "w", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting LitBuddy backend on port {PORT}...\n")
         from app.main import app as fastapi_app
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] app.main imported successfully. Launching uvicorn...\n")
-        uvicorn.run(
+
+        config = uvicorn.Config(
             fastapi_app,
             host="127.0.0.1",
             port=PORT,
-            log_level="warning",
+            log_config=safe_log_config,
             access_log=False
         )
+        server = uvicorn.Server(config)
+        server.run()
     except Exception as e:
         import traceback
         err_msg = traceback.format_exc()
@@ -230,6 +267,31 @@ def main():
             background_color="#131314",
             text_select=True,
         )
+
+        def _apply_windows_dark_titlebar():
+            if sys.platform != "win32":
+                return
+            import ctypes
+            for _ in range(40):
+                try:
+                    hwnd = ctypes.windll.user32.FindWindowW(None, "LitBuddy")
+                    if hwnd:
+                        val = ctypes.c_int(1)
+                        # DWMWA_USE_IMMERSIVE_DARK_MODE (20 on Win11/Win10 20H1+, 19 on older Win10)
+                        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(val), ctypes.sizeof(val))
+                        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(val), ctypes.sizeof(val))
+                        # DWMWA_CAPTION_COLOR (35) -> #131314 BGR: 0x00141313
+                        caption_color = ctypes.c_int(0x00141313)
+                        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(caption_color), ctypes.sizeof(caption_color))
+                        # DWMWA_TEXT_COLOR (36) -> #e3e3e3
+                        text_color = ctypes.c_int(0x00E3E3E3)
+                        ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 36, ctypes.byref(text_color), ctypes.sizeof(text_color))
+                        break
+                except Exception:
+                    pass
+                time.sleep(0.25)
+
+        threading.Thread(target=_apply_windows_dark_titlebar, daemon=True).start()
 
         # pywebview start — blocks until user closes window
         webview.start(

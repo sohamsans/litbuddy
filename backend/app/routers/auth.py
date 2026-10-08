@@ -535,10 +535,27 @@ async def get_saved_searches(db: AsyncSession = Depends(get_db)):
 @router.delete("/saved-searches/{query_hash}")
 async def delete_saved_search_item(
     query_hash: str,
+    topic: Optional[str] = None,
     db: AsyncSession = Depends(get_db)
 ):
-    """Remove search query from recent history suggestions. Cached papers remain in vault."""
-    stmt = delete(DiscoveryCache).where(DiscoveryCache.query_hash == query_hash)
+    """Remove search query from recent history suggestions. Deletes by query_hash and normalized topic."""
+    from sqlalchemy import or_, func
+    if topic:
+        clean_topic = topic.lower().strip()
+        stmt = delete(DiscoveryCache).where(
+            or_(
+                DiscoveryCache.query_hash == query_hash,
+                func.lower(DiscoveryCache.topic) == clean_topic
+            )
+        )
+    else:
+        # Also check if query_hash matches any record's topic directly
+        stmt = delete(DiscoveryCache).where(
+            or_(
+                DiscoveryCache.query_hash == query_hash,
+                func.lower(DiscoveryCache.topic) == query_hash.lower().strip()
+            )
+        )
     await db.execute(stmt)
     await db.commit()
     return {"status": "success", "message": "Review suggestion removed from history."}

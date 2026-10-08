@@ -13,7 +13,8 @@ import {
   Layers,
   Archive,
   RefreshCw,
-  BookOpen
+  BookOpen,
+  Quote
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -45,19 +46,22 @@ interface ReferenceItem {
 interface MasterReferenceManagerProps {
   onOpenPdf: (vaultId: string, title: string) => void;
   onChatAboutPaper: (paper: any) => void;
+  onCitePaper?: (paper: any) => void;
 }
 
 type CitationFormat = 'bibtex' | 'apa' | 'mla' | 'chicago' | 'ieee' | 'ris';
 
 export const MasterReferenceManager: React.FC<MasterReferenceManagerProps> = ({
   onOpenPdf,
-  onChatAboutPaper
+  onChatAboutPaper,
+  onCitePaper
 }) => {
   const [references, setReferences] = useState<ReferenceItem[]>([]);
   const [total, setTotal] = useState(0);
   const [vaultedCount, setVaultedCount] = useState(0);
   const [synthesizedCount, setSynthesizedCount] = useState(0);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [onlyVaulted, setOnlyVaulted] = useState(false);
   const [onlySynthesized, setOnlySynthesized] = useState(false);
   const [selectedFormat, setSelectedFormat] = useState<CitationFormat>('bibtex');
@@ -65,11 +69,19 @@ export const MasterReferenceManager: React.FC<MasterReferenceManagerProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [selectedPaperIds, setSelectedPaperIds] = useState<Set<string>>(new Set());
 
+  // Debounce search input by 300ms to eliminate racing queries
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const fetchReferences = async () => {
     setIsLoading(true);
     try {
       const data = await api.getAllReferences({
-        search: search || undefined,
+        search: debouncedSearch.trim() || undefined,
         only_vaulted: onlyVaulted || undefined,
         only_synthesized: onlySynthesized || undefined
       });
@@ -86,7 +98,7 @@ export const MasterReferenceManager: React.FC<MasterReferenceManagerProps> = ({
 
   useEffect(() => {
     fetchReferences();
-  }, [search, onlyVaulted, onlySynthesized]);
+  }, [debouncedSearch, onlyVaulted, onlySynthesized]);
 
   const generateCitation = (p: ReferenceItem, format: CitationFormat): string => {
     const authorLead = p.authors.length > 0 ? p.authors[0] : 'Unknown';
@@ -350,6 +362,17 @@ export const MasterReferenceManager: React.FC<MasterReferenceManagerProps> = ({
                       </>
                     )}
                   </button>
+
+                  {onCitePaper && (
+                    <button
+                      onClick={() => onCitePaper(paper)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-medium transition-colors"
+                      title="Cite this reference directly in Writing Studio"
+                    >
+                      <Quote className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Cite in Studio</span>
+                    </button>
+                  )}
 
                   {paper.is_vaulted && paper.vault_id && (
                     <button

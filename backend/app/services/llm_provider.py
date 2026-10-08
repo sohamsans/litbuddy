@@ -324,19 +324,12 @@ class UniversalLLMClient:
         raise RuntimeError(f"All configured LLM providers failed. Last error: {last_error}")
 
     async def batch_triage(self, topic: str, candidates: List[dict]) -> TriageResponse:
-        """Stage 1: Batch triage candidate abstracts with ultra-lean token compression."""
+        """Stage 1: Batch triage candidate abstracts with ultra-lean token compression in safe micro-chunks."""
         if not candidates:
             return TriageResponse(evaluations=[])
 
-        # Lean abstract compression (max 180 words, strip boilerplate)
-        compact_payload = []
-        for c in candidates:
-            compact_payload.append({
-                "id": str(c.get("id")),
-                "title": c.get("title", ""),
-                "year": c.get("year"),
-                "abstract": compress_abstract(c.get("abstract", ""), max_words=180)
-            })
+        all_evaluations = []
+        chunk_size = 12
 
         system_instruction = (
             "You are an objective scientific literature screening analyst.\n"
@@ -345,16 +338,32 @@ class UniversalLLMClient:
             "Return ONLY JSON: {\"evaluations\": [{\"id\": \"...\", \"score\": 1-5, \"rationale\": \"1 concise sentence\"}]}.\n"
             "Scoring: 5=vital, 4=relevant, 3=marginal, 1-2=irrelevant."
         )
-        user_content = f"Topic: {topic}\n\nPapers:\n{json.dumps(compact_payload)}"
 
-        try:
-            raw_json = await self.chat_completion(system_instruction, user_content, max_tokens=2048)
-            cleaned = clean_json_text(raw_json)
-            data = json.loads(cleaned)
-            return TriageResponse.model_validate(data)
-        except Exception as e:
-            print(f"[Universal LLM Triage Error]: {e}, using heuristic fallback.")
-            return parse_triage_fallback(candidates)
+        for i in range(0, len(candidates), chunk_size):
+            chunk = candidates[i:i + chunk_size]
+            compact_payload = []
+            for c in chunk:
+                compact_payload.append({
+                    "id": str(c.get("id")),
+                    "title": c.get("title", ""),
+                    "year": c.get("year"),
+                    "abstract": compress_abstract(c.get("abstract", ""), max_words=180)
+                })
+
+            user_content = f"Topic: {topic}\n\nPapers:\n{json.dumps(compact_payload)}"
+
+            try:
+                raw_json = await self.chat_completion(system_instruction, user_content, max_tokens=2048)
+                cleaned = clean_json_text(raw_json)
+                data = json.loads(cleaned)
+                parsed = TriageResponse.model_validate(data)
+                all_evaluations.extend(parsed.evaluations)
+            except Exception as e:
+                print(f"[Universal LLM Triage Chunk Error]: {e}, using heuristic fallback for chunk.")
+                fallback = parse_triage_fallback(chunk)
+                all_evaluations.extend(fallback.evaluations)
+
+        return TriageResponse(evaluations=all_evaluations)
 
     async def deep_extraction(
         self,

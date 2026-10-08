@@ -8,17 +8,33 @@ import {
   MessageSquare,
   Bookmark,
   Download,
-  HelpCircle
+  HelpCircle,
+  PenTool,
+  Network,
+  Table,
+  Calculator,
+  TrendingUp,
+  Tablet,
+  Sparkles,
+  History,
+  RotateCcw,
+  Github,
+  ExternalLink
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { HealthStatus } from '../types';
+import { MusicFocusBar } from './music/MusicFocusBar';
 
 interface HeaderProps {
   health: HealthStatus | null;
   onOpenAssistant: () => void;
-  activeTab?: 'research' | 'references' | 'downloads';
-  onTabChange?: (tab: 'research' | 'references' | 'downloads') => void;
+  activeTab?: 'research' | 'references' | 'downloads' | 'studio' | 'flow' | 'sheets' | 'formulas' | 'stats';
+  onTabChange?: (tab: 'research' | 'references' | 'downloads' | 'studio' | 'flow' | 'sheets' | 'formulas' | 'stats') => void;
   onOpenTutorial?: () => void;
+  onOpenSkills?: () => void;
+  onOpenTabletBridge?: () => void;
+  onOpenRollback?: () => void;
+  lastAutosave?: Date;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -26,175 +42,137 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAssistant,
   activeTab = 'research',
   onTabChange,
-  onOpenTutorial
+  onOpenTutorial,
+  onOpenSkills,
+  onOpenTabletBridge,
+  onOpenRollback,
+  lastAutosave
 }) => {
-  const { user, isAuthenticated, logout, openAuthModal, openKeyModal, saveBYOKKeys } = useAuth();
+  const { user, offlineProfile, openAuthModal, openKeyModal, saveBYOKKeys } = useAuth();
   const [showUserDropdown, setShowUserDropdown] = React.useState(false);
 
   const hasConfiguredKeys = user && Object.values(user.configured_keys || {}).some(v => !!v);
 
   return (
-    <header className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-[#3c4043]/30 z-30 transition-colors bg-[#131314]/80 backdrop-blur-sm">
-      {/* Center Nav Pill Tabs */}
-      <div className="flex items-center gap-1.5 p-1 bg-[#1e1f20] border border-[#3c4043] rounded-2xl">
-        <button
-          type="button"
-          onClick={() => onTabChange?.('research')}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-            activeTab === 'research'
-              ? 'bg-[#8ab4f8] text-[#131314] font-semibold shadow-sm'
-              : 'text-[#9aa0a6] hover:text-[#e3e3e3] hover:bg-[#282a2c]'
-          }`}
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span>Research &amp; Chat</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onTabChange?.('references')}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-            activeTab === 'references'
-              ? 'bg-[#8ab4f8] text-[#131314] font-semibold shadow-sm'
-              : 'text-[#9aa0a6] hover:text-[#e3e3e3] hover:bg-[#282a2c]'
-          }`}
-        >
-          <Bookmark className="w-3.5 h-3.5" />
-          <span>Reference Manager</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onTabChange?.('downloads')}
-          className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-            activeTab === 'downloads'
-              ? 'bg-[#8ab4f8] text-[#131314] font-semibold shadow-sm'
-              : 'text-[#9aa0a6] hover:text-[#e3e3e3] hover:bg-[#282a2c]'
-          }`}
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>Downloads</span>
-        </button>
+    <header className="h-14 px-4 sm:px-6 flex items-center justify-between border-b border-white/5 z-30 transition-colors bg-[#07080a]/95 backdrop-blur-xl">
+      {/* Left Active Context Title (Restrained & Minimalist) */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-zinc-100 capitalize">
+            {activeTab === 'research' ? 'Literature Research' :
+             activeTab === 'studio' ? 'Writing & LaTeX Studio' :
+             activeTab === 'flow' ? 'Interactive Flow Maps' :
+             activeTab === 'formulas' ? 'Scientific Formula Blocks' :
+             activeTab === 'stats' ? 'Statistical Computing' :
+             activeTab === 'sheets' ? 'Project Data Sheets' :
+             activeTab === 'references' ? 'Master Reference Manager' :
+             activeTab === 'downloads' ? 'Local Vault Downloads' : activeTab}
+          </span>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/60 hidden sm:inline">
+            Offline Mode
+          </span>
+        </div>
       </div>
 
-      {/* Right Controls: Tutorial, BYOK, User */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      {/* Right Controls: Focus Music Dock, Tablet, Skills, Tutorial, BYOK, User */}
+      <div className="flex items-center gap-2 sm:gap-2.5">
+        <MusicFocusBar />
+
+        {/* Wireless Tablet Stylus Button (On hold as requested by user; preserved for future activation) */}
+        {/*
+        {onOpenTabletBridge && (
+          <button
+            type="button"
+            onClick={onOpenTabletBridge}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/70 text-xs font-medium text-zinc-300 hover:text-white transition-all shadow-xs"
+            title="Connect iPad / Android Tablet with Apple Pencil / S-Pen"
+          >
+            <Tablet className="w-3.5 h-3.5 text-zinc-400" />
+            <span className="hidden xl:inline">Tablet Stylus</span>
+          </button>
+        )}
+        */}
+
+        {/* AI Skills Synthesizer Button */}
+        {onOpenSkills && (
+          <button
+            type="button"
+            onClick={onOpenSkills}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/70 text-xs font-medium text-zinc-300 hover:text-white transition-all shadow-xs"
+            title="AI Skills & Autonomous Workflows"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-zinc-400" />
+            <span className="hidden xl:inline">AI Skills</span>
+          </button>
+        )}
         {onOpenTutorial && (
           <button
             type="button"
             onClick={onOpenTutorial}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1e1f20] border border-[#3c4043] hover:bg-[#282a2c] text-xs font-medium text-[#c4c7c5] hover:text-[#e3e3e3] transition-all"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/70 text-xs font-medium text-zinc-300 hover:text-white transition-all shadow-xs"
             title="Interactive Walkthrough & Tutorials"
           >
-            <HelpCircle className="w-3.5 h-3.5 text-[#8ab4f8]" />
+            <HelpCircle className="w-3.5 h-3.5 text-zinc-400" />
             <span className="hidden sm:inline">Tutorial</span>
           </button>
         )}
 
-        {/* Gemini-Style BYOK Pill */}
+        {/* Continuous Autosave & Rollback Pill */}
+        {onOpenRollback && (
+          <button
+            type="button"
+            onClick={onOpenRollback}
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-850 text-xs font-medium text-zinc-300 hover:text-white transition-all shadow-xs"
+            title="Continuous Autosave & Snapshot Rollback (Click to restore past work)"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-[11px] font-mono text-zinc-400">Autosaved</span>
+            <History className="w-3.5 h-3.5 text-zinc-400" />
+          </button>
+        )}
+
+        {/* GitHub & Bug Report Link */}
+        <a
+          href="https://github.com/sohamsans/litbuddy/issues"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/80 text-xs font-medium text-zinc-300 hover:text-white transition-all shadow-xs"
+          title="GitHub Repo & Issue Tracker — Report bugs with screenshots!"
+        >
+          <Github className="w-3.5 h-3.5 text-zinc-400" />
+          <span className="hidden lg:inline">Report Issue</span>
+          <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+            Beta
+          </span>
+        </a>
+
+        {/* Disciplined BYOK Key Button */}
         <button
           type="button"
           onClick={openKeyModal}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full dark:bg-[#1e1f20] bg-white border dark:border-[#3c4043] border-[#dadce0] hover:dark:bg-[#282a2c] hover:bg-slate-100 text-xs font-medium dark:text-[#e3e3e3] text-[#1f1f1f] shadow-xs transition-all"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/70 text-xs font-medium text-zinc-200 shadow-xs transition-all"
         >
-          {/* Subtle Google Sparkle */}
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-            <path
-              d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"
-              fill="url(#header-rainbow)"
-            />
-            <defs>
-              <linearGradient id="header-rainbow" x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                <stop stopColor="#4285F4" />
-                <stop offset="0.33" stopColor="#9B72CB" />
-                <stop offset="0.66" stopColor="#D96570" />
-                <stop offset="1" stopColor="#F4B400" />
-              </linearGradient>
-            </defs>
-          </svg>
+          <Key className="w-3.5 h-3.5 text-zinc-400" />
           <span>BYOK Keys</span>
           {hasConfiguredKeys && (
-            <span className="w-1.5 h-1.5 rounded-full bg-[#81c995]" title="Keys encrypted" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Keys encrypted" />
           )}
         </button>
 
-        {/* User Account Pill */}
-        {isAuthenticated && user ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowUserDropdown(!showUserDropdown)}
-              className="w-7 h-7 rounded-full bg-[#8ab4f8] text-[#131314] font-semibold text-xs flex items-center justify-center hover:opacity-90 transition-opacity"
-              title={user.name}
-            >
-              {user.name.charAt(0).toUpperCase()}
-            </button>
-
-            {showUserDropdown && (
-              <div className="absolute right-0 mt-2 w-52 p-2 rounded-2xl dark:bg-[#282a2c] bg-white shadow-xl border dark:border-[#3c4043] border-slate-200 z-50 animate-fadeIn text-xs">
-                <div className="px-3 py-2 border-b dark:border-[#3c4043] border-slate-200">
-                  <p className="font-semibold dark:text-[#e3e3e3] text-slate-900 truncate">{user.name}</p>
-                  <p className="text-[10px] dark:text-[#9aa0a6] text-[#5f6368] truncate">{user.email}</p>
-                </div>
-                <div className="pt-1 space-y-1">
-                  {/* Privacy Quick Toggle */}
-                  <div className="px-3 py-1.5 flex items-center justify-between text-xs">
-                    <span className="text-[#c4c7c5] text-[11px]">Save History</span>
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        const newSetting = !user.save_chat_history;
-                        await saveBYOKKeys({ save_chat_history: newSetting });
-                      }}
-                      className={`relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        user.save_chat_history !== false ? 'bg-[#81c995]' : 'bg-[#5f6368]'
-                      }`}
-                      title={user.save_chat_history !== false ? 'Chats are saved to your account' : 'Ephemeral mode: chats remain only in browser RAM'}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          user.save_chat_history !== false ? 'translate-x-4' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowUserDropdown(false);
-                      openKeyModal();
-                    }}
-                    className="w-full text-left px-3 py-1.5 rounded-lg dark:text-[#c4c7c5] text-slate-700 hover:dark:bg-[#3c4043] hover:bg-slate-100 flex items-center gap-2"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#81c995]" />
-                    <span>Security & Keys</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowUserDropdown(false);
-                      logout();
-                    }}
-                    className="w-full text-left px-3 py-1.5 rounded-lg text-[#f28b82] hover:dark:bg-[#3c4043] hover:bg-rose-50 flex items-center gap-2"
-                  >
-                    <LogOut className="w-3.5 h-3.5" />
-                    <span>Sign Out</span>
-                  </button>
-                </div>
-              </div>
-            )}
+        {/* Fun Offline Researcher Profile Avatar Button */}
+        <button
+          type="button"
+          onClick={openAuthModal}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/80 transition-all text-xs"
+          title={`Researcher: ${offlineProfile?.name || 'Local'} (@${offlineProfile?.username || 'researcher'})`}
+        >
+          <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 text-white font-bold text-[10px] flex items-center justify-center shadow-xs">
+            {(offlineProfile?.name || 'R').charAt(0).toUpperCase()}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={openAuthModal}
-            className="w-7 h-7 rounded-full dark:bg-[#282a2c] bg-slate-200 dark:text-[#9aa0a6] text-[#5f6368] flex items-center justify-center hover:opacity-80 transition-opacity"
-            title="Sign In"
-          >
-            <UserIcon className="w-3.5 h-3.5" />
-          </button>
-        )}
+          <span className="hidden md:inline font-mono text-zinc-300 text-[11px]">
+            @{offlineProfile?.username || 'researcher'}
+          </span>
+        </button>
       </div>
     </header>
   );
