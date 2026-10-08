@@ -329,7 +329,7 @@ export const UnifiedSearchBar: React.FC<UnifiedSearchBarProps> = ({
                 className="glass-pill px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white"
               >
                 <Filter className="w-3.5 h-3.5 text-amber-400" />
-                <span>Score ≥ {relevanceThreshold}★</span>
+                <span>Score ≥ {relevanceThreshold} / 5</span>
               </button>
 
               {showThresholdMenu && (

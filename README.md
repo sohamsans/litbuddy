@@ -85,7 +85,7 @@ litbuddy/
 
 LitBuddy is distributed as a lightweight, 100% offline-ready standalone executable for Windows 10/11:
 
-### 📥 Download the Latest Beta
+### Standalone Executable
 - **Release Version**: `v4.2.0-beta.1`
 - **File**: `LitBuddy.exe` (~173 MB, self-contained single file)
 - **Direct GitHub Releases**: [https://github.com/sohamsans/litbuddy/releases](https://github.com/sohamsans/litbuddy/releases)
@@ -93,28 +93,41 @@ LitBuddy is distributed as a lightweight, 100% offline-ready standalone executab
 
 ---
 
-## ⚠️ Academic Downloading & Polite Pool Advisory
+## Academic Downloading & Polite Pool Advisory
 
 LitBuddy makes research collection straightforward by querying open academic indexes (OpenAlex, arXiv, Crossref, Europe PMC, Unpaywall, IPFS, Project Gutenberg, and decentralized mirrors). However, please note:
 
 1. **Academic Publisher Paywalls & Captchas**: Major commercial publishers frequently update bot detection and paywalls. While LitBuddy exhaustively rotates across mirrors, some closed-access or copyright-restricted papers cannot be retrieved automatically. In these instances, researchers can obtain the document through their university library proxy or preferred repository and drag/import the PDF directly into LitBuddy's local vault.
 2. **API Polite Pools & Rate Limits**:
-   - Services like OpenAlex and Unpaywall provide generous free access through a **Polite Pool** when a contact email is attached.
+   - Services like OpenAlex and Unpaywall provide generous free access through a Polite Pool when a contact email is attached.
    - LitBuddy uses a generic local identifier (`autolit@research.local`) by default so your personal email is never distributed to other users.
    - If you run intensive queries or distribute LitBuddy widely, each user can supply their own contact email in their environment or settings without rate limit conflicts.
 
 ---
 
-## 🐛 Bug Reports & Community Feedback
+## Bug Reports, Maintenance & Community Guidelines
 
-We welcome your feedback, ideas, and bug reports!
+We welcome your feedback, ideas, bug reports, and collaborations!
 
-If you encounter any issues, layout glitches, or unexpected behavior:
-1. Head over to the **[GitHub Issues](https://github.com/sohamsans/litbuddy/issues)** page.
+### Issue Resolution Expectations
+As a student, ongoing coursework, lab assignments, and academic projects take up substantial time. However, I am committed to maintaining this project diligently:
+- **Minor Bugs & Fixes**: Typically triaged and resolved within 2 to 3 days.
+- **Major Features & Enhancements**: Significant capability additions will generally take between 7 to 14 days to design, implement, and verify.
+- **Always Free Policy**: The promise of LitBuddy being free is forever. Any proposed feature that requires recurring subscriptions, paid backend servers, or would prevent the software from remaining 100% free and open will have to be skipped over.
+- **Continuous Updates**: As I use LitBuddy daily for my own research work, I will routinely publish refinements, mirror improvements, and workflow updates.
+
+I hope this tool makes your research journey smoother and more productive. Suggestions, contributions, and academic collaborations are warmly welcomed.
+
+*Your fellow researcher,*  
+**sohamsans**
+
+### How to Report an Issue
+If you encounter any issues, layout quirks, or unexpected behavior:
+1. Navigate to the **[GitHub Issues](https://github.com/sohamsans/litbuddy/issues)** page.
 2. Click **New Issue**.
-3. **Attach screenshots** of the window or relevant panels (Flow Maps, Writing Studio, Reference Manager, etc.).
-4. Describe what you were trying to do and what happened.
-5. You can also click the **"Report Issue"** or **"GitHub"** buttons directly inside LitBuddy's top header bar or sidebar footer to open this page instantly.
+3. **Attach screenshots** of the application window or affected views (Flow Maps, Writing Studio, Reference Manager, etc.).
+4. Describe your operating environment, what you were trying to accomplish, and what occurred.
+5. You can also click the **"Report Issue"** or **"GitHub"** buttons directly inside LitBuddy's header bar or sidebar dock to jump to the issue tracker.
 
 ---
 

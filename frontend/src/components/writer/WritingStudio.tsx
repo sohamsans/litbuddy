@@ -333,7 +333,7 @@ export const WritingStudio: React.FC<WritingStudioProps> = ({
       updatedSource = updatedSource + ` ${citeCmd} `;
       handleLatexChange(updatedSource);
     } else {
-      const appended = targetDoc.content + `\n\n> 📖 **Cited Paper**: ${citeText} *${incomingCitation.title}* ${incomingCitation.doi ? `([DOI](https://doi.org/${incomingCitation.doi}))` : ''}\n`;
+      const appended = targetDoc.content + `\n\n> [Citation] **Cited Paper**: ${citeText} *${incomingCitation.title}* ${incomingCitation.doi ? `([DOI](https://doi.org/${incomingCitation.doi}))` : ''}\n`;
       handleContentChange(appended);
     }
 
