@@ -93,6 +93,18 @@ LitBuddy is distributed as a lightweight, 100% offline-ready standalone executab
 
 ---
 
+## ⚠️ Academic Downloading & Polite Pool Advisory
+
+LitBuddy makes research collection straightforward by querying open academic indexes (OpenAlex, arXiv, Crossref, Europe PMC, Unpaywall, IPFS, Project Gutenberg, and decentralized mirrors). However, please note:
+
+1. **Academic Publisher Paywalls & Captchas**: Major commercial publishers frequently update bot detection and paywalls. While LitBuddy exhaustively rotates across mirrors, some closed-access or copyright-restricted papers cannot be retrieved automatically. In these instances, researchers can obtain the document through their university library proxy or preferred repository and drag/import the PDF directly into LitBuddy's local vault.
+2. **API Polite Pools & Rate Limits**:
+   - Services like OpenAlex and Unpaywall provide generous free access through a **Polite Pool** when a contact email is attached.
+   - LitBuddy uses a generic local identifier (`autolit@research.local`) by default so your personal email is never distributed to other users.
+   - If you run intensive queries or distribute LitBuddy widely, each user can supply their own contact email in their environment or settings without rate limit conflicts.
+
+---
+
 ## 🐛 Bug Reports & Community Feedback
 
 We welcome your feedback, ideas, and bug reports!

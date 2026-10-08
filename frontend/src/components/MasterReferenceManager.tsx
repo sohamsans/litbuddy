@@ -14,7 +14,8 @@ import {
   Archive,
   RefreshCw,
   BookOpen,
-  Quote
+  Quote,
+  Info
 } from 'lucide-react';
 import { api } from '../services/api';
 
@@ -263,6 +264,14 @@ export const MasterReferenceManager: React.FC<MasterReferenceManagerProps> = ({
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Gentle Mirror & Paywall Advisory */}
+      <div className="p-3.5 bg-[#1e1f20]/60 border border-[#3c4043]/60 rounded-2xl flex items-start gap-2.5 text-xs text-[#9aa0a6] leading-relaxed">
+        <Info className="w-4 h-4 text-[#8ab4f8] shrink-0 mt-0.5" />
+        <span>
+          <strong className="text-[#e3e3e3] font-medium">Research Note:</strong> Automated full-text retrieval queries open-access repositories (arXiv, Unpaywall, IPFS, PubMed Central) and community mirrors. Because publishers regularly modify their anti-scraping protections and paywalls, not all papers can be retrieved automatically. If an OA PDF is not located, you can obtain it through your institutional subscription or preferred repository and drag/import it straight into your vault.
+        </span>
       </div>
 
       {/* References Paper Cards */}

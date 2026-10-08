@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { RawPaperMetadata } from '../types';
-import { CheckSquare, Square, ExternalLink, Search, ChevronDown, ChevronUp, ArrowRight, Download, Filter } from 'lucide-react';
+import { CheckSquare, Square, ExternalLink, Search, ChevronDown, ChevronUp, ArrowRight, Download, Filter, Info } from 'lucide-react';
 import { TagBadge } from './TagBadge';
 
 interface CandidatePreviewTableProps {
@@ -141,6 +141,14 @@ export const CandidatePreviewTable: React.FC<CandidatePreviewTableProps> = ({
             )}
           </button>
         </div>
+      </div>
+
+      {/* Polite Bulk Download & Academic Paywall Advisory */}
+      <div className="px-5 py-2.5 bg-amber-500/5 border-b border-amber-500/15 flex items-start gap-2.5 text-[11px] text-zinc-400">
+        <Info className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+        <span className="leading-relaxed">
+          <strong className="text-zinc-300 font-medium">Notice on Full-Text Retrieval:</strong> While LitBuddy queries multiple open-access repositories (arXiv, Unpaywall, OpenAlex, IPFS, Project Gutenberg), commercial publishers frequently adjust paywalls and Cloudflare captchas. If a specific paper fails to download automatically, you can retrieve the PDF manually (via your university portal, Sci-Hub, or author preprints) and import it directly into the vault.
+        </span>
       </div>
 
       {/* Unified Paper Items (Full-Bleed Desktop View, No Nested Scroll Container) */}
