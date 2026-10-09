@@ -246,6 +246,9 @@ def main():
     try:
         import webview
 
+        # Allow HTML5 / Blob / Excel / CSV file downloads in pywebview WebView2 window
+        webview.settings['ALLOW_DOWNLOADS'] = True
+
         # Resolve icon path — look next to exe first, then source tree
         icon = None
         for candidate in [

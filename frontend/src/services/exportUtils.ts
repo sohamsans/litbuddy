@@ -51,32 +51,54 @@ export function exportToExcel(papers: ReviewPaper[], topic: string) {
   const sanitizedTopic = topic.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
   const fileName = `LitBuddy_${sanitizedTopic || 'Review'}_${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-  const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-  const blob = new Blob([excelBuffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.setAttribute('href', url);
-  link.setAttribute('download', fileName);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  try {
+    // SheetJS writeFile handles browser/native WebView download triggers reliably
+    XLSX.writeFile(workbook, fileName);
+  } catch (err) {
+    console.warn('XLSX.writeFile fallback to Blob download:', err);
+    const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([excelBuffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
 }
 
 export function exportToCSV(papers: ReviewPaper[], topic: string) {
   const formatted = formatPapersForExport(papers);
   const worksheet = XLSX.utils.json_to_sheet(formatted);
-  const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Literature Review');
 
-  const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
   const sanitizedTopic = topic.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `AutoLit_${sanitizedTopic || 'Review'}_${new Date().toISOString().slice(0, 10)}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const fileName = `LitBuddy_${sanitizedTopic || 'Review'}_${new Date().toISOString().slice(0, 10)}.csv`;
+
+  try {
+    XLSX.writeFile(workbook, fileName, { bookType: 'csv' });
+  } catch (err) {
+    console.warn('XLSX.writeFile CSV fallback:', err);
+    const csvOutput = XLSX.utils.sheet_to_csv(worksheet);
+    const blob = new Blob([csvOutput], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 1000);
+  }
 }
