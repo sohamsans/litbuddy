@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   PanelLeftClose,
   PanelLeftOpen,
@@ -59,21 +59,52 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [searchFilter, setSearchFilter] = useState('');
   const [sidebarMode, setSidebarMode] = useState<'chat' | 'spark'>('chat');
 
-  useEffect(() => {
-    api.getSavedSearches().then(setRecentSearches).catch(() => {});
+  const refreshSearches = useCallback(() => {
+    // 1. Fetch from backend DiscoveryCache
+    api.getSavedSearches().then((backendSearches) => {
+      // 2. Also merge any local recent searches from localStorage
+      try {
+        const localListRaw = localStorage.getItem('researchloom_local_searches');
+        const localList: SavedSearchItem[] = localListRaw ? JSON.parse(localListRaw) : [];
+        const combined = [...localList, ...(backendSearches || [])];
+        setRecentSearches(combined);
+      } catch {
+        setRecentSearches(backendSearches || []);
+      }
+    }).catch(() => {
+      try {
+        const localListRaw = localStorage.getItem('researchloom_local_searches');
+        if (localListRaw) setRecentSearches(JSON.parse(localListRaw));
+      } catch {}
+    });
   }, []);
+
+  useEffect(() => {
+    refreshSearches();
+    const handleUpdate = () => refreshSearches();
+    window.addEventListener('researchloom_search_saved', handleUpdate);
+    return () => window.removeEventListener('researchloom_search_saved', handleUpdate);
+  }, [refreshSearches]);
 
   const handleDeleteSearch = async (e: React.MouseEvent, item: SavedSearchItem) => {
     e.stopPropagation();
     // 1. Instantly remove from local component state for zero UI latency
     setRecentSearches((prev) => prev.filter((s) => s.query_hash !== item.query_hash && s.topic.toLowerCase().trim() !== item.topic.toLowerCase().trim()));
 
-    // 2. Clear corresponding localStorage review cache
+    // 2. Clear corresponding localStorage review cache & local search history
     try {
       const cleanTopic = item.topic.toLowerCase().trim();
       localStorage.removeItem(`litbuddy_saved_review_${item.query_hash}`);
       localStorage.removeItem(`litbuddy_saved_review_${cleanTopic}`);
-      // Remove any matching keys
+
+      const localListRaw = localStorage.getItem('researchloom_local_searches');
+      if (localListRaw) {
+        const localList: SavedSearchItem[] = JSON.parse(localListRaw);
+        const updated = localList.filter((s) => s.query_hash !== item.query_hash && s.topic.toLowerCase().trim() !== cleanTopic);
+        localStorage.setItem('researchloom_local_searches', JSON.stringify(updated));
+      }
+
+      // Remove any matching review keys
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
         if (k && k.startsWith('litbuddy_saved_review_') && k.toLowerCase().includes(cleanTopic)) {

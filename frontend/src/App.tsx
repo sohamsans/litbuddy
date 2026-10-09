@@ -37,7 +37,8 @@ import {
   ReviewPaper,
   RawPaperMetadata,
   SearchRequest,
-  VaultPaperItem
+  VaultPaperItem,
+  SavedSearchItem
 } from './types';
 import { AlertCircle, BookOpen, MessageSquare, Table } from 'lucide-react';
 
@@ -287,6 +288,31 @@ const MainLayout: React.FC = () => {
       custom_base_url: runtimeKeys.custom_base_url
     };
 
+    // Helper to immediately register search in history and dispatch event
+    const recordSearchHistory = (topic: string, count: number) => {
+      try {
+        const queryHash = topic.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        const newItem: SavedSearchItem = {
+          query_hash: queryHash || `search_${Date.now()}`,
+          topic: topic.trim(),
+          total_count: count,
+          created_at: new Date().toISOString(),
+          access_count: 1
+        };
+
+        const localListRaw = localStorage.getItem('researchloom_local_searches');
+        const localList: SavedSearchItem[] = localListRaw ? JSON.parse(localListRaw) : [];
+        const filtered = localList.filter((s) => s.topic.toLowerCase().trim() !== topic.toLowerCase().trim());
+        const updated = [newItem, ...filtered].slice(0, 30);
+        localStorage.setItem('researchloom_local_searches', JSON.stringify(updated));
+
+        // Dispatch window event so Sidebar updates immediately without full reload
+        window.dispatchEvent(new CustomEvent('researchloom_search_saved'));
+      } catch (err) {
+        console.warn('Could not record search history:', err);
+      }
+    };
+
     if (params.mode === 'discover') {
       // Step 1: Candidate Pool Discovery
       setStage('discovering');
@@ -305,6 +331,20 @@ const MainLayout: React.FC = () => {
           setSelectedPaperIds(new Set(response.papers.map((p) => p.id)));
         }
         setStage('idle');
+
+        // Immediately persist to search history and active session
+        recordSearchHistory(params.topic, response.papers.length);
+        try {
+          localStorage.setItem('litbuddy_active_session', JSON.stringify({
+            currentTopic: params.topic,
+            searchOffset: newOffset,
+            discoveredPapers: isAppend ? [...discoveredPapers, ...response.papers] : response.papers,
+            selectedPaperIds: Array.from(isAppend ? [...discoveredPapers, ...response.papers] : response.papers).map((p) => p.id),
+            reviewResults: null,
+            viewMode: 'matrix',
+            mainTab: 'research'
+          }));
+        } catch {}
       } catch (err: any) {
         setStage('error');
         setError(err.message || 'Discovery failed.');
@@ -326,9 +366,21 @@ const MainLayout: React.FC = () => {
         setStage('completed');
         setViewMode('chat');
         setIsSourcesSidebarOpen(true);
+
+        // Immediately persist to search history and local review cache
+        recordSearchHistory(response.topic, response.total_selected || response.papers.length);
         try {
           const norm = response.topic.toLowerCase().trim();
           localStorage.setItem(`litbuddy_saved_review_${norm}`, JSON.stringify(response));
+          localStorage.setItem('litbuddy_active_session', JSON.stringify({
+            currentTopic: response.topic,
+            searchOffset: newOffset,
+            discoveredPapers: [],
+            selectedPaperIds: [],
+            reviewResults: response,
+            viewMode: 'chat',
+            mainTab: 'research'
+          }));
         } catch {}
       } catch (err: any) {
         setStage('error');
@@ -368,9 +420,35 @@ const MainLayout: React.FC = () => {
       setStage('completed');
       setViewMode('chat');
       setIsSourcesSidebarOpen(true);
+
+      // Immediately save synthesized review and session
       try {
         const norm = response.topic.toLowerCase().trim();
         localStorage.setItem(`litbuddy_saved_review_${norm}`, JSON.stringify(response));
+        localStorage.setItem('litbuddy_active_session', JSON.stringify({
+          currentTopic: response.topic,
+          searchOffset,
+          discoveredPapers,
+          selectedPaperIds: Array.from(selectedPaperIds),
+          reviewResults: response,
+          viewMode: 'chat',
+          mainTab: 'research'
+        }));
+
+        // Also record in search history
+        const queryHash = norm.replace(/[^a-z0-9]/g, '');
+        const newItem: SavedSearchItem = {
+          query_hash: queryHash || `search_${Date.now()}`,
+          topic: response.topic.trim(),
+          total_count: response.total_selected || response.papers.length,
+          created_at: new Date().toISOString(),
+          access_count: 1
+        };
+        const localListRaw = localStorage.getItem('researchloom_local_searches');
+        const localList: SavedSearchItem[] = localListRaw ? JSON.parse(localListRaw) : [];
+        const filtered = localList.filter((s) => s.topic.toLowerCase().trim() !== response.topic.toLowerCase().trim());
+        localStorage.setItem('researchloom_local_searches', JSON.stringify([newItem, ...filtered].slice(0, 30)));
+        window.dispatchEvent(new CustomEvent('researchloom_search_saved'));
       } catch {}
     } catch (err: any) {
       setStage('error');

@@ -174,13 +174,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const saveBYOKKeys = useCallback(async (keys: Record<string, any>) => {
     const newKeys: Record<string, string> = {};
-    if (keys.groq_api_key || keys.groq) newKeys.groq = keys.groq_api_key || keys.groq;
-    if (keys.gemini_api_key || keys.gemini) newKeys.gemini = keys.gemini_api_key || keys.gemini;
-    if (keys.openrouter_api_key || keys.openrouter) newKeys.openrouter = keys.openrouter_api_key || keys.openrouter;
-    if (keys.deepseek_api_key || keys.deepseek) newKeys.deepseek = keys.deepseek_api_key || keys.deepseek;
-    if (keys.nvidia_api_key || keys.nvidia) newKeys.nvidia = keys.nvidia_api_key || keys.nvidia;
-    if (keys.custom_api_key || keys.custom) newKeys.custom = keys.custom_api_key || keys.custom;
-    if (keys.custom_base_url) newKeys.custom_base_url = keys.custom_base_url;
+    if (keys.groq_api_key !== undefined) newKeys.groq = keys.groq_api_key;
+    else if (keys.groq !== undefined) newKeys.groq = keys.groq;
+
+    if (keys.gemini_api_key !== undefined) newKeys.gemini = keys.gemini_api_key;
+    else if (keys.gemini !== undefined) newKeys.gemini = keys.gemini;
+
+    if (keys.openrouter_api_key !== undefined) newKeys.openrouter = keys.openrouter_api_key;
+    else if (keys.openrouter !== undefined) newKeys.openrouter = keys.openrouter;
+
+    if (keys.deepseek_api_key !== undefined) newKeys.deepseek = keys.deepseek_api_key;
+    else if (keys.deepseek !== undefined) newKeys.deepseek = keys.deepseek;
+
+    if (keys.nvidia_api_key !== undefined) newKeys.nvidia = keys.nvidia_api_key;
+    else if (keys.nvidia !== undefined) newKeys.nvidia = keys.nvidia;
+
+    if (keys.custom_api_key !== undefined) newKeys.custom = keys.custom_api_key;
+    else if (keys.custom !== undefined) newKeys.custom = keys.custom;
+
+    if (keys.custom_base_url !== undefined) newKeys.custom_base_url = keys.custom_base_url;
 
     setRuntimeKeys(prev => {
       const next = { ...prev, ...newKeys };
@@ -190,12 +202,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     // Automatically switch active provider to the newly configured key
-    if (newKeys.gemini) {
+    // Priority: If user provided or updated gemini key, switch to gemini; else whichever key is populated
+    if (newKeys.gemini && newKeys.gemini.trim()) {
       handleSetActiveProvider('gemini');
-    } else if (newKeys.groq) {
+    } else if (newKeys.groq && newKeys.groq.trim()) {
       handleSetActiveProvider('groq');
-    } else if (newKeys.openrouter) {
+    } else if (newKeys.openrouter && newKeys.openrouter.trim()) {
       handleSetActiveProvider('openrouter');
+    } else if (newKeys.deepseek && newKeys.deepseek.trim()) {
+      handleSetActiveProvider('deepseek');
+    } else if (newKeys.nvidia && newKeys.nvidia.trim()) {
+      handleSetActiveProvider('nvidia');
     }
   }, [handleSetActiveProvider]);
 

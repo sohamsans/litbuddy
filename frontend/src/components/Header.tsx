@@ -24,6 +24,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { HealthStatus } from '../types';
 import { MusicFocusBar } from './music/MusicFocusBar';
+import { ModelSwitcherPill } from './ModelSwitcherPill';
 
 interface HeaderProps {
   health: HealthStatus | null;
@@ -149,11 +150,14 @@ export const Header: React.FC<HeaderProps> = ({
           </span>
         </a>
 
+        {/* Universal Model & Provider Switcher */}
+        <ModelSwitcherPill />
+
         {/* Disciplined BYOK Key Button */}
         <button
           type="button"
           onClick={openKeyModal}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/70 text-xs font-medium text-zinc-200 shadow-xs transition-all"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/70 text-xs font-medium text-zinc-200 shadow-xs transition-all cursor-pointer"
         >
           <Key className="w-3.5 h-3.5 text-zinc-400" />
           <span>BYOK Keys</span>
