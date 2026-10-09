@@ -85,11 +85,17 @@ litbuddy/
 
 LitBuddy is distributed as a lightweight, 100% offline-ready standalone executable for Windows 10/11:
 
-### Standalone Executable
-- **Release Version**: `v4.2.0-beta.1`
-- **File**: `LitBuddy.exe` (~173 MB, self-contained single file)
+### Downloads (Windows 10/11 64-bit)
 - **Direct GitHub Releases**: [https://github.com/sohamsans/litbuddy/releases](https://github.com/sohamsans/litbuddy/releases)
-- **Requirements**: Windows 10 or 11 (64-bit). No Python, Node.js, or complex command-line installation required. Simply double-click `LitBuddy.exe` to launch.
+- **Package Archive (Recommended)**: `LitBuddy-v4.2.0-beta.1-windows-x64.zip`
+- **Standalone Binary**: `LitBuddy.exe` (~173 MB, self-contained single file)
+- **Requirements**: Windows 10 or 11 (64-bit). No Python, Node.js, or command-line installation required. Simply extract the archive or run `LitBuddy.exe`.
+
+### Note on Browser & Windows SmartScreen Warnings
+Because LitBuddy is a free open-source student project without an expensive ($300-$500/year) commercial corporate code-signing certificate:
+1. **Google Chrome / Browser Warning**: If Chrome prompts "LitBuddy.exe isn't commonly downloaded and may be dangerous", click the arrow next to the download and select **Keep** (or download the `.zip` archive instead).
+2. **Windows SmartScreen Prompt**: If Windows shows "Windows protected your PC / Unknown Publisher", click **More info** and select **Run anyway**.
+The application is 100% open-source, contains zero telemetry or trackers, and full source code is public and inspectable in this repository.
 
 ---
 
