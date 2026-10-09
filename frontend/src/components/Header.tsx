@@ -71,6 +71,9 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/60 hidden sm:inline">
             Offline Mode
           </span>
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20 hidden md:inline">
+            {offlineProfile?.app_identity === 'samhita' ? 'Samhita' : 'ResearchLoom'}
+          </span>
         </div>
       </div>
 

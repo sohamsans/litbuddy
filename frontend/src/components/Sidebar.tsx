@@ -127,10 +127,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <>
             <div className="flex items-center gap-2.5 min-w-0">
               <LitBuddyLogo className="w-6 h-6 shrink-0" />
-              <span className="font-semibold text-sm tracking-tight text-zinc-100 flex items-center gap-1.5">
-                LitBuddy
+              <span className="font-semibold text-sm tracking-tight text-zinc-100 flex items-center gap-1.5 truncate">
+                {offlineProfile?.app_identity === 'samhita' ? 'Samhita' : 'ResearchLoom'}
                 <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  AI
+                  {offlineProfile?.app_identity === 'samhita' ? 'संहिता' : 'AI'}
                 </span>
               </span>
             </div>

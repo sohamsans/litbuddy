@@ -18,6 +18,7 @@ export const OfflineProfileModal: React.FC = () => {
   const [username, setUsername] = useState(offlineProfile.username);
   const [title, setTitle] = useState(offlineProfile.title);
   const [avatarColor, setAvatarColor] = useState(offlineProfile.avatar_color || 'sky');
+  const [appIdentity, setAppIdentity] = useState<'researchloom' | 'samhita'>(offlineProfile.app_identity || 'researchloom');
   const [saveHistory, setSaveHistory] = useState(offlineProfile.save_chat_history ?? true);
   const [savedSuccess, setSavedSuccess] = useState(false);
 
@@ -30,6 +31,7 @@ export const OfflineProfileModal: React.FC = () => {
       username: username.trim().replace(/^@/, '') || 'researcher',
       title: title.trim() || 'Independent Scholar',
       avatar_color: avatarColor,
+      app_identity: appIdentity,
       save_chat_history: saveHistory
     });
     setSavedSuccess(true);
@@ -126,11 +128,51 @@ export const OfflineProfileModal: React.FC = () => {
             </div>
           </div>
 
+          {/* App Title / Heritage Identity Switcher */}
+          <div>
+            <label className="text-xs font-medium text-zinc-300 block mb-1.5">
+              Workspace Heritage &amp; Display Name
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setAppIdentity('researchloom')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  appIdentity === 'researchloom'
+                    ? 'border-sky-500/80 bg-sky-500/10 text-white ring-1 ring-sky-500/50'
+                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <div className="text-xs font-semibold flex items-center justify-between">
+                  <span>ResearchLoom</span>
+                  {appIdentity === 'researchloom' && <Check className="w-3.5 h-3.5 text-sky-400" />}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Modern Scholar Loom</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAppIdentity('samhita')}
+                className={`p-2.5 rounded-xl border text-left transition-all ${
+                  appIdentity === 'samhita'
+                    ? 'border-amber-500/80 bg-amber-500/10 text-white ring-1 ring-amber-500/50'
+                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-400 hover:text-zinc-200'
+                }`}
+              >
+                <div className="text-xs font-semibold flex items-center justify-between">
+                  <span>Samhita (संहिता)</span>
+                  {appIdentity === 'samhita' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">Vedic Research Matrix</div>
+              </button>
+            </div>
+          </div>
+
           {/* Privacy Note */}
           <div className="p-3 rounded-xl bg-zinc-950/80 border border-zinc-800/80 flex items-start gap-2.5 text-[11px] text-zinc-400 leading-relaxed">
             <Heart className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
             <span>
-              LitBuddy is 100% offline and free forever. Your profile, papers, and notes remain strictly on your machine.
+              ResearchLoom (Samhita) is 100% offline and free forever. Your profile, papers, and notes remain strictly on your machine.
             </span>
           </div>
 

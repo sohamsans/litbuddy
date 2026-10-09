@@ -1,6 +1,6 @@
-# LitBuddy
+# ResearchLoom (Samhita / संहिता)
 
-LitBuddy is an autonomous academic literature synthesis engine and interactive research assistant. It discovers scientific literature across open academic indexes, deduplicates candidate records, executes a two-stage relevance triage and extraction pipeline, archives full-text PDFs into a local document vault, and provides an interactive research chatbot with KaTeX mathematical formula rendering.
+**ResearchLoom** (also known as **Samhita** — from Sanskrit *संहिता*, meaning *"methodically gathered and joined together"*) is an autonomous academic literature synthesis engine, flow canvas explorer, and interactive research workbench. It discovers scientific literature across open academic indexes, deduplicates candidate records, executes a two-stage relevance triage and extraction pipeline, archives full-text PDFs into a private local document vault, and provides an interactive research assistant with KaTeX formula rendering and LaTeX manuscript authoring. Users can freely toggle their preferred workspace identity between **ResearchLoom** and **Samhita** anytime in the application profile settings.
 
 ---
 

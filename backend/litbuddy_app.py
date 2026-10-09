@@ -122,8 +122,8 @@ SPLASH_HTML = f"""<!DOCTYPE html>
     </svg>
   </div>
   <div style="text-align:center;display:flex;flex-direction:column;gap:8px;align-items:center">
-    <h1>LitBuddy</h1>
-    <p class="sub">Autonomous Literature Review &amp; Vault</p>
+    <h1>ResearchLoom</h1>
+    <p class="sub">Samhita (संहिता) — Autonomous Academic Synthesis &amp; Vault</p>
   </div>
   <div class="dots">
     <div class="dot"></div><div class="dot"></div><div class="dot"></div>
@@ -261,7 +261,7 @@ def main():
                 break
 
         window = webview.create_window(
-            title="LitBuddy",
+            title="ResearchLoom (Samhita)",
             html=SPLASH_HTML,          # ← Show splash immediately (no network needed)
             width=1360,
             height=860,

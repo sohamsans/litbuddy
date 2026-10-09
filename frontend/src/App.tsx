@@ -86,7 +86,15 @@ const MainLayout: React.FC = () => {
   } | null>(null);
   const [pendingFormulaSnippet, setPendingFormulaSnippet] = useState<string | null>(null);
 
-  const { activeProvider, activeModel, runtimeKeys } = useAuth();
+  const { activeProvider, activeModel, runtimeKeys, offlineProfile } = useAuth();
+
+  // Dynamic window/document title matching user persona
+  useEffect(() => {
+    const brand = offlineProfile?.app_identity === 'samhita'
+      ? 'Samhita (संहिता) — Vedic Research Matrix'
+      : 'ResearchLoom (Samhita) — Autonomous Academic Synthesis';
+    document.title = brand;
+  }, [offlineProfile?.app_identity]);
 
   useEffect(() => {
     fetchHealthStatus()

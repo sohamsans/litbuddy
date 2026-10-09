@@ -6,6 +6,7 @@ export interface OfflineProfile {
   username: string;
   title: string;
   avatar_color: 'sky' | 'emerald' | 'purple' | 'amber' | 'rose' | 'zinc';
+  app_identity?: 'researchloom' | 'samhita';
   save_chat_history?: boolean;
 }
 
@@ -55,6 +56,7 @@ const DEFAULT_PROFILE: OfflineProfile = {
   username: 'researcher',
   title: 'Independent Scholar',
   avatar_color: 'sky',
+  app_identity: 'researchloom',
   save_chat_history: true
 };
 

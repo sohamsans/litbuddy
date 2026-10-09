@@ -20,14 +20,14 @@ VSVersionInfo(
           '040904B0',
           [
             StringStruct('CompanyName', 'sohamsans'),
-            StringStruct('FileDescription', 'LitBuddy - Autonomous AI Literature Synthesis Engine'),
+            StringStruct('FileDescription', 'ResearchLoom (Samhita) - Autonomous AI Literature Synthesis Engine'),
             StringStruct('FileVersion', '4.2.0.1'),
-            StringStruct('InternalName', 'LitBuddy'),
+            StringStruct('InternalName', 'ResearchLoom'),
             StringStruct('LegalCopyright', 'Copyright (c) 2026 sohamsans. MIT License.'),
-            StringStruct('OriginalFilename', 'LitBuddy.exe'),
-            StringStruct('ProductName', 'LitBuddy Academic Desktop'),
+            StringStruct('OriginalFilename', 'ResearchLoom.exe'),
+            StringStruct('ProductName', 'ResearchLoom (Samhita) Academic Desktop'),
             StringStruct('ProductVersion', '4.2.0-beta.1'),
-            StringStruct('Comments', 'Free forever open-source research assistant built by sohamsans.')
+            StringStruct('Comments', 'Free forever open-source research synthesis engine built by sohamsans.')
           ]
         )
       ]
