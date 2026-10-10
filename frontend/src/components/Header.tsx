@@ -137,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* GitHub & Bug Report Link */}
         <a
-          href="https://github.com/sohamsans/litbuddy/issues"
+          href="https://github.com/sohamsans/researchloom/issues"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 hover:bg-zinc-800/80 text-xs font-medium text-zinc-300 hover:text-white transition-all shadow-xs"
