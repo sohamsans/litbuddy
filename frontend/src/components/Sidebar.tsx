@@ -391,7 +391,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               )}
               <a
-                href="https://github.com/sohamsans/litbuddy/issues"
+                href="https://github.com/sohamsans/researchloom/issues"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-1 text-zinc-400 hover:text-sky-300 transition-colors cursor-pointer"

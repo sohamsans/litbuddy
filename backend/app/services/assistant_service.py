@@ -221,17 +221,29 @@ async def answer_paper_qa(
                 "suggested_searches": []
             }
     except Exception as e:
-        print(f"[Paper QA LLM Error]: {e}")
-        return {
-            "answer": (
-                "⚠️ **No active AI model configured or daily quota exceeded.**\n\n"
-                "LitBuddy could not reach the LLM provider. Please check your API key in **BYOK Settings** "
-                "(Groq and Google Gemini offer free cloud tiers with instant access). "
+        err_msg = str(e)
+        print(f"[Paper QA LLM Error]: {err_msg}")
+        active_prov = (provider or "AI model").capitalize()
+
+        if not llm.has_any_configured_key() or "No API key configured" in err_msg:
+            answer_text = (
+                f"⚠️ **No active API key configured for {active_prov}.**\n\n"
+                "Please open **BYOK Settings** from the top bar to add your free Google Gemini or Groq API key. "
                 "All your gathered papers, citations, and downloaded PDFs remain safely cached in the Document Vault."
-            ),
+            )
+        else:
+            answer_text = (
+                f"⚠️ **{active_prov} query could not be completed.**\n\n"
+                f"**Diagnostic Details:** {err_msg}\n\n"
+                "Please verify your API key in **BYOK Settings**, check your daily quota limits, "
+                "or switch to another provider using the model switcher pill in the top header."
+            )
+
+        return {
+            "answer": answer_text,
             "cited_paper_ids": [],
             "suggested_followups": [
-                "How do I set up a free Groq or Gemini key?",
+                "How do I set up a free Gemini or Groq key?",
                 "Can I view the synthesized paper matrix?"
             ],
             "suggested_searches": []

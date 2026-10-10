@@ -12,7 +12,7 @@ interface ModelOption {
 }
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { id: 'gemini', name: 'Google Gemini Flash', model: 'gemini-1.5-flash-8b', tag: 'Fast & Free', keyName: 'gemini' },
+  { id: 'gemini', name: 'Google Gemini Flash', model: 'gemini-2.0-flash', tag: 'Fast & Free', keyName: 'gemini' },
   { id: 'groq', name: 'Groq Cloud Llama', model: 'llama-3.1-8b-instant', tag: 'High Speed', keyName: 'groq' },
   { id: 'openrouter', name: 'OpenRouter Free', model: 'meta-llama/llama-3.1-8b-instruct:free', tag: ':free models', keyName: 'openrouter' },
   { id: 'deepseek', name: 'DeepSeek Chat', model: 'deepseek-chat', tag: 'V3 Deep', keyName: 'deepseek' },
@@ -47,6 +47,18 @@ export const ModelSwitcherPill: React.FC<{ className?: string }> = ({ className 
     }
   };
 
+  const getShortModelLabel = (model: string, provider: ModelProvider) => {
+    if (!model || model === provider) {
+      if (provider === 'gemini') return '2.0-flash';
+      if (provider === 'groq') return 'llama-3.1';
+      return provider;
+    }
+    if (model.startsWith('gemini-')) return model.replace('gemini-', '');
+    if (model.includes('llama-3.1')) return 'llama-3.1';
+    if (model.includes('llama-3.3')) return 'llama-3.3';
+    return model.split('/')[1] || model.split('-')[0] || model;
+  };
+
   const currentOption = MODEL_OPTIONS.find((m) => m.id === activeProvider) || MODEL_OPTIONS[0];
 
   return (
@@ -60,7 +72,7 @@ export const ModelSwitcherPill: React.FC<{ className?: string }> = ({ className 
         {getProviderIcon(activeProvider)}
         <span className="capitalize">{activeProvider}</span>
         <span className="text-[10px] text-zinc-500 font-mono hidden md:inline">
-          ({activeModel.split('-')[0]})
+          ({getShortModelLabel(activeModel, activeProvider)})
         </span>
         {/* Visual green indicator if current provider has a key configured */}
         <span

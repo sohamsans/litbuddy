@@ -335,6 +335,11 @@ const MainLayout: React.FC = () => {
         // Immediately persist to search history and active session
         recordSearchHistory(params.topic, response.papers.length);
         try {
+          const norm = params.topic.toLowerCase().trim();
+          localStorage.setItem(`litbuddy_saved_discovery_${norm}`, JSON.stringify({
+            topic: params.topic,
+            papers: response.papers
+          }));
           localStorage.setItem('litbuddy_active_session', JSON.stringify({
             currentTopic: params.topic,
             searchOffset: newOffset,
@@ -514,6 +519,20 @@ const MainLayout: React.FC = () => {
                 setStage('completed');
                 setViewMode('chat');
                 setIsSourcesSidebarOpen(true);
+                return;
+              }
+            }
+          } catch {}
+          try {
+            const discCached = localStorage.getItem(`litbuddy_saved_discovery_${norm}`);
+            if (discCached) {
+              const parsed = JSON.parse(discCached);
+              if (parsed && parsed.papers && parsed.papers.length > 0) {
+                setDiscoveredPapers(parsed.papers);
+                setSelectedPaperIds(new Set(parsed.papers.map((p: any) => p.id)));
+                setReviewResults(null);
+                setStage('idle');
+                setViewMode('matrix');
                 return;
               }
             }

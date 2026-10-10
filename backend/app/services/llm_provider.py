@@ -29,6 +29,25 @@ def compress_abstract(text: str, max_words: int = 180) -> str:
         return " ".join(words)
     return " ".join(words[:max_words]) + "..."
 
+def normalize_gemini_model(model_name: Optional[str]) -> str:
+    """Normalize user-specified or legacy Gemini model names to valid official endpoints."""
+    if not model_name:
+        return "gemini-2.0-flash"
+    m = model_name.lower().strip()
+    if m in ("gemini", "default", "auto", ""):
+        return "gemini-2.0-flash"
+    if "3.5" in m or "flash-lite" in m or "8b" in m or "1.5-flash-8b" in m:
+        return "gemini-2.0-flash"
+    if "2.0-flash" in m or "2.0" in m:
+        return "gemini-2.0-flash"
+    if "1.5-pro" in m:
+        return "gemini-1.5-pro"
+    if "1.5-flash" in m:
+        return "gemini-1.5-flash"
+    if not m.startswith("gemini-"):
+        return "gemini-2.0-flash"
+    return model_name.strip()
+
 def compress_paper_slice(text: str, max_chars: int = 8000) -> str:
     """Strip bibliography markers, license clauses, and clamp to 8,000 chars for token conservation."""
     if not text:
@@ -105,39 +124,60 @@ class UniversalLLMClient:
         self.custom_key = (custom_key or "").strip()
         self.custom_base_url = (custom_base_url or "").strip().rstrip("/")
 
-        # Active provider determination
-        self.provider = (provider or "").lower()
-        if not self.provider:
-            if self.groq_key:
-                self.provider = "groq"
-            elif self.gemini_key:
-                self.provider = "gemini"
-            elif self.openrouter_key:
-                self.provider = "openrouter"
-            elif self.deepseek_key:
-                self.provider = "deepseek"
-            elif self.nvidia_key:
-                self.provider = "nvidia"
-            elif self.custom_key and self.custom_base_url:
-                self.provider = "custom"
-            else:
-                self.provider = "heuristic"
-
-        # Model determination
-        if model_name:
-            self.model_name = model_name
-        elif self.provider == "gemini":
-            self.model_name = settings.gemini_model
-        elif self.provider == "openrouter":
-            self.model_name = "meta-llama/llama-3.3-70b-instruct:free"
-        elif self.provider == "deepseek":
-            self.model_name = "deepseek-chat"
-        elif self.provider == "nvidia":
-            self.model_name = "meta/llama-3.1-8b-instruct"
-        elif self.provider == "custom":
-            self.model_name = "default"
+        # Active provider determination:
+        # If requested provider has no configured key, or no provider was passed,
+        # automatically route to the first provider that actually has credentials!
+        req_provider = (provider or "").lower().strip()
+        candidates = ["gemini", "groq", "openrouter", "deepseek", "nvidia", "custom"]
+        if req_provider and self.has_configured_key(req_provider):
+            self.provider = req_provider
         else:
-            self.model_name = settings.groq_model
+            self.provider = next((c for c in candidates if self.has_configured_key(c)), "")
+            if not self.provider:
+                self.provider = req_provider or "heuristic"
+
+        # Model determination (guarantee provider-model congruence)
+        if self.provider == "gemini":
+            self.model_name = normalize_gemini_model(model_name or settings.gemini_model)
+        elif self.provider == "groq":
+            if not model_name or "gemini" in model_name.lower() or "deepseek" in model_name.lower():
+                self.model_name = settings.groq_model or "llama-3.1-8b-instant"
+            else:
+                self.model_name = model_name
+        elif self.provider == "openrouter":
+            self.model_name = model_name if (model_name and "/" in model_name) else "meta-llama/llama-3.3-70b-instruct:free"
+        elif self.provider == "deepseek":
+            self.model_name = model_name if (model_name and "deepseek" in model_name) else "deepseek-chat"
+        elif self.provider == "nvidia":
+            self.model_name = model_name if (model_name and "meta" in model_name) else "meta/llama-3.1-8b-instruct"
+        elif self.provider == "custom":
+            self.model_name = model_name or "default"
+        else:
+            self.model_name = model_name or "heuristic"
+
+    def has_configured_key(self, provider: str) -> bool:
+        """Check whether credentials are provided for the specified LLM service."""
+        p = provider.lower().strip()
+        if p == "groq":
+            return bool(self.groq_key)
+        if p == "gemini":
+            return bool(self.gemini_key)
+        if p == "openrouter":
+            return bool(self.openrouter_key)
+        if p == "deepseek":
+            return bool(self.deepseek_key)
+        if p == "nvidia":
+            return bool(self.nvidia_key)
+        if p == "custom":
+            return bool(self.custom_key and self.custom_base_url)
+        return False
+
+    def has_any_configured_key(self) -> bool:
+        """Check whether any LLM provider has an active key configured."""
+        return any(
+            self.has_configured_key(p)
+            for p in ["groq", "gemini", "openrouter", "deepseek", "nvidia", "custom"]
+        )
 
     async def _call_openai_compatible(
         self,
@@ -177,73 +217,113 @@ class UniversalLLMClient:
             data = resp.json()
             return data["choices"][0]["message"]["content"] or "{}"
 
-    async def _call_gemini(self, system_prompt: str, user_prompt: str) -> str:
+    async def _call_gemini(self, system_prompt: str, user_prompt: str, response_json: bool = True) -> str:
         if not self.gemini_key:
             raise RuntimeError("Gemini API key is not configured.")
 
-        # Map obsolete / typo model names to current valid official Gemini models
-        target_model = self.model_name or "gemini-2.0-flash"
-        if "3.5" in target_model:
-            target_model = "gemini-2.0-flash"
+        target_model = normalize_gemini_model(self.model_name)
+        prompt = f"{system_prompt}\n\n{user_prompt}"
 
+        # 1. Primary path: official google-genai SDK
         try:
             import asyncio
             from google import genai
             from google.genai import types
 
             client = genai.Client(api_key=self.gemini_key)
-            prompt = f"{system_prompt}\n\n{user_prompt}"
 
-            # Run blocking SDK network call in threadpool so it doesn't freeze the async event loop
-            def _sync_generate():
+            def _sync_generate(is_json: bool):
+                config_kwargs: Dict[str, Any] = {"temperature": 0.2}
+                if is_json:
+                    config_kwargs["response_mime_type"] = "application/json"
                 return client.models.generate_content(
                     model=target_model,
                     contents=prompt,
-                    config=types.GenerateContentConfig(
-                        response_mime_type="application/json",
-                        temperature=0.2
-                    )
+                    config=types.GenerateContentConfig(**config_kwargs)
                 )
 
-            res = await asyncio.to_thread(_sync_generate)
-            return res.text or "{}"
+            try:
+                res = await asyncio.to_thread(_sync_generate, response_json)
+                if res and res.text:
+                    return res.text
+            except Exception as sdk_err:
+                # If strict JSON mime-type failed, retry without JSON enforcement before falling back
+                if response_json:
+                    try:
+                        res = await asyncio.to_thread(_sync_generate, False)
+                        if res and res.text:
+                            return res.text
+                    except Exception:
+                        pass
+                raise sdk_err
+
         except Exception as e:
-            # Fallback to direct REST API if google-genai SDK fails
+            # 2. Resilient fallback path: Direct REST Generative Language API
             endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={self.gemini_key}"
             async with httpx.AsyncClient(timeout=45.0) as client:
-                body = {
-                    "contents": [{"parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}]}],
-                    "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json"}
+                body: Dict[str, Any] = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.2}
                 }
+                if response_json:
+                    body["generationConfig"]["responseMimeType"] = "application/json"
+
                 resp = await client.post(endpoint, json=body)
+                # If strict JSON was rejected by REST API, retry with plain text
+                if resp.status_code != 200 and response_json:
+                    del body["generationConfig"]["responseMimeType"]
+                    resp = await client.post(endpoint, json=body)
+
                 if resp.status_code != 200:
-                    raise RuntimeError(f"Gemini REST error {resp.status_code}: {resp.text[:200]}")
+                    err_detail = resp.text[:300]
+                    try:
+                        err_json = resp.json()
+                        err_detail = err_json.get("error", {}).get("message", err_detail)
+                    except Exception:
+                        pass
+                    raise RuntimeError(f"Gemini API error ({resp.status_code}): {err_detail}")
+
                 data = resp.json()
-                return data["candidates"][0]["content"]["parts"][0]["text"] or "{}"
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    raise RuntimeError("Gemini API returned no response candidates.")
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if not parts:
+                    raise RuntimeError("Gemini candidate contains no content parts.")
+                return parts[0].get("text") or "{}"
 
     async def _try_single_provider(
         self,
         provider: str,
         system_prompt: str,
         user_prompt: str,
-        max_tokens: int = 2048
+        max_tokens: int = 2048,
+        response_json: bool = True
     ) -> str:
         """Call a specific provider directly without failover."""
-        if provider == "groq" and self.groq_key:
-            model = self.model_name if self.provider == "groq" else "openai/gpt-oss-20b"
+        p = provider.lower().strip()
+        if p == "groq":
+            if not self.groq_key:
+                raise RuntimeError("Groq API key is not configured.")
+            model = self.model_name if (self.provider == "groq" and "gemini" not in self.model_name.lower()) else "llama-3.1-8b-instant"
             return await self._call_openai_compatible(
                 base_url="https://api.groq.com/openai/v1",
                 api_key=self.groq_key,
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                response_json=response_json
             )
 
-        if provider == "gemini" and self.gemini_key:
-            return await self._call_gemini(system_prompt, user_prompt)
+        if p == "gemini":
+            if not self.gemini_key:
+                raise RuntimeError("Google Gemini API key is not configured.")
+            return await self._call_gemini(system_prompt, user_prompt, response_json=response_json)
 
-        if provider == "openrouter" and self.openrouter_key:
+        if p == "openrouter":
+            if not self.openrouter_key:
+                raise RuntimeError("OpenRouter API key is not configured.")
             model = self.model_name if self.provider == "openrouter" else "meta-llama/llama-3.3-70b-instruct:free"
             return await self._call_openai_compatible(
                 base_url="https://openrouter.ai/api/v1",
@@ -252,13 +332,16 @@ class UniversalLLMClient:
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 extra_headers={
-                    "HTTP-Referer": "https://autolit.ai",
-                    "X-Title": "AutoLit AI"
+                    "HTTP-Referer": "https://researchloom.dev",
+                    "X-Title": "ResearchLoom AI"
                 },
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                response_json=response_json
             )
 
-        if provider == "deepseek" and self.deepseek_key:
+        if p == "deepseek":
+            if not self.deepseek_key:
+                raise RuntimeError("DeepSeek API key is not configured.")
             model = self.model_name if self.provider == "deepseek" else "deepseek-chat"
             return await self._call_openai_compatible(
                 base_url="https://api.deepseek.com",
@@ -266,10 +349,13 @@ class UniversalLLMClient:
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                response_json=response_json
             )
 
-        if provider == "nvidia" and self.nvidia_key:
+        if p == "nvidia":
+            if not self.nvidia_key:
+                raise RuntimeError("NVIDIA NIM API key is not configured.")
             model = self.model_name if self.provider == "nvidia" else "meta/llama-3.1-8b-instruct"
             return await self._call_openai_compatible(
                 base_url="https://integrate.api.nvidia.com/v1",
@@ -277,51 +363,74 @@ class UniversalLLMClient:
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                response_json=response_json
             )
 
-        if provider == "custom" and self.custom_key and self.custom_base_url:
+        if p == "custom":
+            if not (self.custom_key and self.custom_base_url):
+                raise RuntimeError("Custom endpoint requires both an API key and Base URL.")
             return await self._call_openai_compatible(
                 base_url=self.custom_base_url,
                 api_key=self.custom_key,
                 model=self.model_name,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
-                max_tokens=max_tokens
+                max_tokens=max_tokens,
+                response_json=response_json
             )
 
-        raise RuntimeError(f"Provider '{provider}' is not configured with an API key.")
+        raise RuntimeError(f"Unknown or unsupported provider '{provider}'.")
 
     async def chat_completion(
         self,
         system_prompt: str,
         user_prompt: str,
-        max_tokens: int = 2500
+        max_tokens: int = 2500,
+        response_json: bool = True
     ) -> str:
         """
         Dispatch query to the designated active provider.
         If a 429 (rate limit), 402 (quota exceeded), or network error occurs,
-        automatically cascades to the next configured provider with shared context continuity.
+        automatically cascades to other CONFIGURED providers with shared context continuity.
         """
-        # Build priority list starting with user's preferred provider
-        candidate_providers = [self.provider]
-        for p in ["groq", "gemini", "openrouter", "deepseek", "nvidia", "custom"]:
-            if p not in candidate_providers:
-                candidate_providers.append(p)
+        if not self.has_any_configured_key():
+            active_name = (self.provider or "AI models").upper()
+            raise RuntimeError(
+                f"No API key configured for {active_name}. "
+                "Please configure a free Groq or Google Gemini key in BYOK Settings."
+            )
 
-        last_error = None
-        for prov in candidate_providers:
+        # Build list of candidate providers that actually have keys/endpoints configured
+        all_providers = ["groq", "gemini", "openrouter", "deepseek", "nvidia", "custom"]
+        ordered = [self.provider] + [p for p in all_providers if p != self.provider]
+        candidate_providers = [p for p in ordered if self.has_configured_key(p)]
+
+        if not candidate_providers:
+            raise RuntimeError(
+                f"Provider '{self.provider}' has no API key configured. "
+                "Please enter your key in BYOK Settings."
+            )
+
+        primary_prov = candidate_providers[0]
+        primary_error: Optional[Exception] = None
+
+        for idx, prov in enumerate(candidate_providers):
             try:
-                res = await self._try_single_provider(prov, system_prompt, user_prompt, max_tokens)
+                res = await self._try_single_provider(
+                    prov, system_prompt, user_prompt, max_tokens, response_json=response_json
+                )
                 if prov != self.provider:
                     print(f"[Smart Model Failover] Primary '{self.provider}' unavailable; seamlessly used '{prov}'.")
                 return res
             except Exception as e:
-                last_error = e
+                if idx == 0:
+                    primary_error = e
                 print(f"[Smart Model Failover] Provider '{prov}' attempt failed: {e}")
                 continue
 
-        raise RuntimeError(f"All configured LLM providers failed. Last error: {last_error}")
+        # If all configured providers failed, raise the primary provider's specific error message!
+        raise RuntimeError(f"{primary_prov.capitalize()} request failed: {primary_error}")
 
     async def batch_triage(self, topic: str, candidates: List[dict]) -> TriageResponse:
         """Stage 1: Batch triage candidate abstracts with ultra-lean token compression in safe micro-chunks."""

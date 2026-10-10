@@ -98,21 +98,34 @@ export const OnboardingKeyModal: React.FC = () => {
         save_chat_history: privacySettings.saveChatHistory,
         contribute_public_cache: privacySettings.contributePublicCache
       };
-      if (keysInput.groq.trim()) payload.groq_api_key = keysInput.groq.trim();
-      if (keysInput.gemini.trim()) payload.gemini_api_key = keysInput.gemini.trim();
-      if (keysInput.openrouter.trim()) payload.openrouter_api_key = keysInput.openrouter.trim();
-      if (keysInput.deepseek.trim()) payload.deepseek_api_key = keysInput.deepseek.trim();
-      if (keysInput.nvidia.trim()) payload.nvidia_api_key = keysInput.nvidia.trim();
-      if (keysInput.custom.trim()) payload.custom_api_key = keysInput.custom.trim();
-      if (keysInput.custom_base_url.trim()) payload.custom_base_url = keysInput.custom_base_url.trim();
+      const keyMap: Record<string, string> = {
+        groq: keysInput.groq.trim(),
+        gemini: keysInput.gemini.trim(),
+        openrouter: keysInput.openrouter.trim(),
+        deepseek: keysInput.deepseek.trim(),
+        nvidia: keysInput.nvidia.trim(),
+        custom: keysInput.custom.trim(),
+        custom_base_url: keysInput.custom_base_url.trim()
+      };
+
+      if (keyMap.groq) payload.groq_api_key = keyMap.groq;
+      if (keyMap.gemini) payload.gemini_api_key = keyMap.gemini;
+      if (keyMap.openrouter) payload.openrouter_api_key = keyMap.openrouter;
+      if (keyMap.deepseek) payload.deepseek_api_key = keyMap.deepseek;
+      if (keyMap.nvidia) payload.nvidia_api_key = keyMap.nvidia;
+      if (keyMap.custom) payload.custom_api_key = keyMap.custom;
+      if (keyMap.custom_base_url) payload.custom_base_url = keyMap.custom_base_url;
 
       await saveBYOKKeys(payload);
 
-      Object.entries(payload).forEach(([k, v]) => {
-        if (typeof v === 'string') {
-          setRuntimeKey(k.replace('_api_key', ''), v);
-        }
+      Object.entries(keyMap).forEach(([k, v]) => {
+        setRuntimeKey(k, v);
       });
+
+      // If the current tab being configured has a valid key, explicitly prioritize it
+      if (['groq', 'gemini', 'openrouter', 'deepseek', 'nvidia', 'custom'].includes(activeTab) && keyMap[activeTab]) {
+        setRuntimeKey(activeTab, keyMap[activeTab]);
+      }
 
       setSaveSuccess(true);
       setTimeout(() => {

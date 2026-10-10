@@ -46,7 +46,7 @@ export const OnboardingTourModal: React.FC<OnboardingTourModalProps> = ({
         'This project will forever remain 100% free. I am a fellow researcher and I understand the frustrations of going through tons of literature review and doing tedious tasks again and again. This app is not here to make money, not here to become famous.',
       bullets: [
         'Dedicated to Research Flow: Built to make research a fun and easy process where we can spend more time on breakthrough methodologies and less on tedious screening.',
-        'Feedback & Issues Forum on GitHub: If you encounter any bugs, please report them on our GitHub Issues page (github.com/sohamsans/litbuddy/issues) with screenshots so we can quickly patch them in the next beta build.',
+        'Feedback & Issues Forum on GitHub: If you encounter any bugs, please report them on our GitHub Issues page (github.com/sohamsans/researchloom/issues) with screenshots so we can quickly patch them in the next beta build.',
         'Strictly Offline & Privacy-First: The app operates locally on your device. Your notes, manuscripts, and vaulted papers belong solely to you and will never be shared.'
       ]
     },

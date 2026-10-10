@@ -41,19 +41,38 @@ async def get_current_user_optional(
     authorization: Optional[str] = Header(default=None),
     db: AsyncSession = Depends(get_db)
 ) -> Optional[User]:
-    """Helper to extract user from Bearer JWT token if present."""
+    """Helper to extract user from Bearer JWT token if present, supporting offline desktop sessions."""
     if not authorization or not authorization.startswith("Bearer "):
         return None
-    token = authorization.split(" ")[1]
-    payload = verify_access_token(token)
-    if not payload:
-        return None
-    user_id = payload.get("sub")
+    token = authorization.split(" ")[1].strip()
+    user_id = None
+    if token == "offline_desktop_token":
+        user_id = "offline_user"
+    else:
+        payload = verify_access_token(token)
+        if payload:
+            user_id = payload.get("sub")
     if not user_id:
         return None
     stmt = select(User).where(User.id == user_id)
     result = await db.execute(stmt)
-    return result.scalar_one_or_none()
+    user = result.scalar_one_or_none()
+    if not user and user_id == "offline_user":
+        # Auto-provision offline desktop user in local database
+        user = User(
+            id="offline_user",
+            email="researcher@litbuddy.offline",
+            username="researcher",
+            name="Fellow Researcher",
+            is_verified=True,
+            auth_provider="offline",
+            save_chat_history=True,
+            contribute_public_cache=False
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    return user
 
 async def get_current_user_required(
     authorization: Optional[str] = Header(default=None),
@@ -468,20 +487,30 @@ async def save_user_history(
         )
 
     serialized = json.dumps([m.model_dump() for m in req.messages])
-    history_entry = ChatHistory(
-        user_id=user.id,
-        title=req.title,
-        messages_json=serialized
-    )
-    db.add(history_entry)
-    await db.commit()
-    await db.refresh(history_entry)
+    stmt = select(ChatHistory).where(ChatHistory.user_id == user.id, ChatHistory.title == req.title)
+    existing_entry = (await db.execute(stmt)).scalar_one_or_none()
+
+    if existing_entry:
+        existing_entry.messages_json = serialized
+        await db.commit()
+        await db.refresh(existing_entry)
+        target_entry = existing_entry
+    else:
+        history_entry = ChatHistory(
+            user_id=user.id,
+            title=req.title,
+            messages_json=serialized
+        )
+        db.add(history_entry)
+        await db.commit()
+        await db.refresh(history_entry)
+        target_entry = history_entry
 
     return ChatHistoryResponse(
-        id=history_entry.id,
-        title=history_entry.title,
+        id=target_entry.id,
+        title=target_entry.title,
         messages=req.messages,
-        created_at=history_entry.created_at.isoformat() if history_entry.created_at else ""
+        created_at=target_entry.created_at.isoformat() if target_entry.created_at else ""
     )
 
 @router.delete("/history/{history_id}")

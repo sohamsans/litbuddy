@@ -81,10 +81,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Provider & Model State
   const [activeProvider, setActiveProvider] = useState<ModelProvider>(() => {
-    return (localStorage.getItem('autolit_active_provider') as ModelProvider) || 'groq';
+    return (localStorage.getItem('autolit_active_provider') as ModelProvider) || 'gemini';
   });
   const [activeModel, setActiveModel] = useState<string>(() => {
-    return localStorage.getItem('autolit_active_model') || 'llama-3.1-8b-instant';
+    const stored = localStorage.getItem('autolit_active_model');
+    const p = (localStorage.getItem('autolit_active_provider') as ModelProvider) || 'gemini';
+    if (!stored || stored === 'gemini' || stored === 'gemini-1.5-flash-8b' || stored === 'gemini-3.5-flash-lite') {
+      const def = p === 'gemini' ? 'gemini-2.0-flash' : 'llama-3.1-8b-instant';
+      localStorage.setItem('autolit_active_model', def);
+      return def;
+    }
+    if (p === 'gemini' && !stored.toLowerCase().startsWith('gemini-')) {
+      const def = 'gemini-2.0-flash';
+      localStorage.setItem('autolit_active_model', def);
+      return def;
+    }
+    return stored;
   });
 
   // Runtime API keys state (stored in session or localStorage)
@@ -101,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getProviderDefaultModel = (provider: ModelProvider): string => {
     switch (provider) {
       case 'gemini':
-        return 'gemini-1.5-flash-8b';
+        return 'gemini-2.0-flash';
       case 'groq':
         return 'llama-3.1-8b-instant';
       case 'openrouter':
@@ -111,7 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       case 'nvidia':
         return 'meta/llama-3.1-8b-instruct';
       default:
-        return 'llama-3.1-8b-instant';
+        return 'gemini-2.0-flash';
     }
   };
 

@@ -129,7 +129,7 @@ I hope this tool makes your research journey smoother and more productive. Sugge
 
 ### How to Report an Issue
 If you encounter any issues, layout quirks, or unexpected behavior:
-1. Navigate to the **[GitHub Issues](https://github.com/sohamsans/litbuddy/issues)** page.
+1. Navigate to the **[GitHub Issues](https://github.com/sohamsans/researchloom/issues)** page.
 2. Click **New Issue**.
 3. **Attach screenshots** of the application window or affected views (Flow Maps, Writing Studio, Reference Manager, etc.).
 4. Describe your operating environment, what you were trying to accomplish, and what occurred.

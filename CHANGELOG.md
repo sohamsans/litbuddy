@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v4.2.0-beta.1] - 2026-10-10
 
 ### Fixed
+- **BUG-115 (Persistent Chat & Model Switcher Unification)**:
+  - Fixed offline desktop token (`offline_desktop_token`) rejection in `/api/auth/history` by auto-provisioning local SQLite user `offline_user`.
+  - Added immediate conversation sync upon chat start and synthesis load so chats are persisted before the first user question is sent.
+  - Replaced duplicate Paper Chat model picker with `<ModelSwitcherPill />` directly in the chat context bar with real-time key status.
+  - Added per-topic candidate discovery persistence (`litbuddy_saved_discovery_*`) enabling instant 0ms restoration of discovered paper matrices.
+  - Auto-switches active LLM provider immediately whenever a new API key is configured or updated in BYOK settings.
 - **BUG-114 (Universal LLM & Gemini Q&A Fallback)**:
   - Fixed issue where selecting Google Gemini in BYOK or Model Switcher returned `"No active AI model configured or daily quota exceeded"` despite active green key pill.
   - Corrected legacy/deprecated model strings (`gemini-3.5-flash-lite` -> official current `gemini-2.0-flash` & `gemini-1.5-flash`).
