@@ -34,7 +34,7 @@
    +----------------------------------+     +----------------------------------+
    |      Local Document Vault        |     |     Interactive Chat Assistant   |
    |  In-app PDF retrieval & viewer   |     |  Grounded Q&A, KaTeX rendering,  |
-   |  Saved to 'LitBuddy Papers'      |     |  clickable citation pill badges  |
+   |  Saved to 'ResearchLoom Papers'  |     |  clickable citation pill badges  |
    +----------------------------------+     +----------------------------------+
 ```
 
@@ -46,7 +46,7 @@
 - **Two-Stage LLM Evaluation**:
   - **Stage 1 (Batch Triage)**: Evaluates batches of candidate abstracts simultaneously using lightweight, fast models (Groq Llama 3.1 8B or Gemini Flash 8B).
   - **Stage 2 (Deep Extraction)**: Extracts core research questions, methodologies, empirical benchmarks, and research limitations into structured schemas.
-- **Local Document Vault (`LitBuddy Papers`)**: Downloads and caches full-text papers directly inside a local folder on your computer. Includes an inline in-app PDF reader.
+- **Local Document Vault (`ResearchLoom Papers`)**: Downloads and caches full-text papers directly inside a local folder on your computer. Includes an inline in-app PDF reader.
 - **Interactive Research Chatbot**: Context-grounded conversational interface for asking detailed questions across the synthesized paper collection, with dynamic KaTeX LaTeX rendering and clickable citation badges.
 - **Reference Manager**: Exports formatted references across BibTeX, APA, MLA, and RIS formats, as well as Excel (`.xlsx`) and CSV tables.
 - **Bring Your Own Key (BYOK) Security**: API keys are encrypted locally using AES-256 via Fernet cryptography in SQLite. No keys are hardcoded or shared.
@@ -56,7 +56,7 @@
 ## Project Structure
 
 ```text
-litbuddy/
+researchloom/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py              # FastAPI entrypoint and middleware configuration
@@ -83,17 +83,17 @@ litbuddy/
 
 ## Beta Release & Standalone Downloads
 
-LitBuddy is distributed as a lightweight, 100% offline-ready standalone executable for Windows 10/11:
+ResearchLoom (Samhita) is distributed as a lightweight, 100% offline-ready standalone executable for Windows 10/11:
 
 ### Downloads (Windows 10/11 64-bit)
-- **Direct GitHub Releases**: [https://github.com/sohamsans/litbuddy/releases](https://github.com/sohamsans/litbuddy/releases)
-- **Package Archive (Recommended)**: `LitBuddy-v4.2.0-beta.1-windows-x64.zip`
-- **Standalone Binary**: `LitBuddy.exe` (~173 MB, self-contained single file)
-- **Requirements**: Windows 10 or 11 (64-bit). No Python, Node.js, or command-line installation required. Simply extract the archive or run `LitBuddy.exe`.
+- **Direct GitHub Releases**: [https://github.com/sohamsans/researchloom/releases](https://github.com/sohamsans/researchloom/releases)
+- **Package Archive (Recommended)**: `ResearchLoom-v4.2.0-beta.1-windows-x64.zip`
+- **Standalone Binary**: `ResearchLoom.exe` (~110 MB, self-contained single file)
+- **Requirements**: Windows 10 or 11 (64-bit). No Python, Node.js, or command-line installation required. Simply extract the archive or run `ResearchLoom.exe`.
 
 ### Note on Browser & Windows SmartScreen Warnings
-Because LitBuddy is a free open-source student project without an expensive ($300-$500/year) commercial corporate code-signing certificate:
-1. **Google Chrome / Browser Warning**: If Chrome prompts "LitBuddy.exe isn't commonly downloaded and may be dangerous", click the arrow next to the download and select **Keep** (or download the `.zip` archive instead).
+Because ResearchLoom is a free open-source student project without an expensive ($300-$500/year) commercial corporate code-signing certificate:
+1. **Google Chrome / Browser Warning**: If Chrome prompts "ResearchLoom.exe isn't commonly downloaded and may be dangerous", click the arrow next to the download and select **Keep** (or download the `.zip` archive instead).
 2. **Windows SmartScreen Prompt**: If Windows shows "Windows protected your PC / Unknown Publisher", click **More info** and select **Run anyway**.
 The application is 100% open-source, contains zero telemetry or trackers, and full source code is public and inspectable in this repository.
 
@@ -101,13 +101,13 @@ The application is 100% open-source, contains zero telemetry or trackers, and fu
 
 ## Academic Downloading & Polite Pool Advisory
 
-LitBuddy makes research collection straightforward by querying open academic indexes (OpenAlex, arXiv, Crossref, Europe PMC, Unpaywall, IPFS, Project Gutenberg, and decentralized mirrors). However, please note:
+ResearchLoom makes research collection straightforward by querying open academic indexes (OpenAlex, arXiv, Crossref, Europe PMC, Unpaywall, IPFS, Project Gutenberg, and decentralized mirrors). However, please note:
 
-1. **Academic Publisher Paywalls & Captchas**: Major commercial publishers frequently update bot detection and paywalls. While LitBuddy exhaustively rotates across mirrors, some closed-access or copyright-restricted papers cannot be retrieved automatically. In these instances, researchers can obtain the document through their university library proxy or preferred repository and drag/import the PDF directly into LitBuddy's local vault.
+1. **Academic Publisher Paywalls & Captchas**: Major commercial publishers frequently update bot detection and paywalls. While ResearchLoom exhaustively rotates across mirrors, some closed-access or copyright-restricted papers cannot be retrieved automatically. In these instances, researchers can obtain the document through their university library proxy or preferred repository and drag/import the PDF directly into ResearchLoom's local vault.
 2. **API Polite Pools & Rate Limits**:
    - Services like OpenAlex and Unpaywall provide generous free access through a Polite Pool when a contact email is attached.
-   - LitBuddy uses a generic local identifier (`autolit@research.local`) by default so your personal email is never distributed to other users.
-   - If you run intensive queries or distribute LitBuddy widely, each user can supply their own contact email in their environment or settings without rate limit conflicts.
+   - ResearchLoom uses a generic local identifier (`autolit@research.local`) by default so your personal email is never distributed to other users.
+   - If you run intensive queries or distribute ResearchLoom widely, each user can supply their own contact email in their environment or settings without rate limit conflicts.
 
 ---
 
@@ -119,8 +119,8 @@ We welcome your feedback, ideas, bug reports, and collaborations!
 As a student, ongoing coursework, lab assignments, and academic projects take up substantial time. However, I am committed to maintaining this project diligently:
 - **Minor Bugs & Fixes**: Typically triaged and resolved within 2 to 3 days.
 - **Major Features & Enhancements**: Significant capability additions will generally take between 7 to 14 days to design, implement, and verify.
-- **Always Free Policy**: The promise of LitBuddy being free is forever. Any proposed feature that requires recurring subscriptions, paid backend servers, or would prevent the software from remaining 100% free and open will have to be skipped over.
-- **Continuous Updates**: As I use LitBuddy daily for my own research work, I will routinely publish refinements, mirror improvements, and workflow updates.
+- **Always Free Policy**: The promise of ResearchLoom being free is forever. Any proposed feature that requires recurring subscriptions, paid backend servers, or would prevent the software from remaining 100% free and open will have to be skipped over.
+- **Continuous Updates**: As I use ResearchLoom daily for my own research work, I will routinely publish refinements, mirror improvements, and workflow updates.
 
 I hope this tool makes your research journey smoother and more productive. Suggestions, contributions, and academic collaborations are warmly welcomed.
 
@@ -133,23 +133,23 @@ If you encounter any issues, layout quirks, or unexpected behavior:
 2. Click **New Issue**.
 3. **Attach screenshots** of the application window or affected views (Flow Maps, Writing Studio, Reference Manager, etc.).
 4. Describe your operating environment, what you were trying to accomplish, and what occurred.
-5. You can also click the **"Report Issue"** or **"GitHub"** buttons directly inside LitBuddy's header bar or sidebar dock to jump to the issue tracker.
+5. You can also click the **"Report Issue"** or **"GitHub"** buttons directly inside ResearchLoom's header bar or sidebar dock to jump to the issue tracker.
 
 ---
 
 ## Running Locally
 
-### Option 1: Standalone Windows Application (`LitBuddy.exe`)
+### Option 1: Standalone Windows Application (`ResearchLoom.exe`)
 
-You can run LitBuddy as a native desktop application without installing Python or Node.js.
+You can run ResearchLoom as a native desktop application without installing Python or Node.js.
 
 1. Compile the executable using the provided build script:
    ```cmd
    build_windows_exe.bat
    ```
-2. The compiled binary will be placed at `dist/LitBuddy.exe`.
-3. Launch `LitBuddy.exe`. It boots the local backend service and opens a dedicated native desktop window.
-4. Downloaded papers are automatically saved to `LitBuddy Papers/` in the same directory.
+2. The compiled binary will be placed at `dist/ResearchLoom.exe`.
+3. Launch `ResearchLoom.exe`. It boots the local backend service and opens a dedicated native desktop window.
+4. Downloaded papers are automatically saved to `ResearchLoom Papers/` in the same directory.
 
 ---
 
@@ -206,7 +206,7 @@ Copy `.env.example` in the `backend/` directory if you wish to configure default
 ```ini
 DATABASE_URL=sqlite+aiosqlite:///./autolit.db
 OPENALEX_EMAIL=your-email@example.com
-LITBUDDY_VAULT_DIR=./LitBuddy Papers
+RESEARCHLOOM_VAULT_DIR=./ResearchLoom Papers
 ```
 
 API keys for LLM providers (Groq, Google Gemini, OpenRouter) can be entered directly in the application settings dialog upon startup. Keys are stored locally in an encrypted database.

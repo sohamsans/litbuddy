@@ -1,7 +1,7 @@
 @echo off
-title Build LitBuddy.exe for Windows
+title Build ResearchLoom.exe for Windows
 echo =======================================================================
-echo   Building LitBuddy Windows Standalone Executable (.exe)...
+echo   Building ResearchLoom Windows Standalone Executable (.exe)...
 echo =======================================================================
 
 cd /d "%~dp0"
@@ -31,13 +31,13 @@ if exist "backend\.venv\Scripts\pyinstaller.exe" (
     set PYINSTALLER=pyinstaller
 )
 
-echo [3/3] Compiling LitBuddy.exe with PyInstaller...
-"%PYINSTALLER%" --clean -y litbuddy.spec
+echo [3/3] Compiling ResearchLoom.exe with PyInstaller...
+"%PYINSTALLER%" --clean -y LitBuddy.spec
 
 if %ERRORLEVEL% EQU 0 (
     echo =======================================================================
     echo   BUILD SUCCESSFUL!
-    echo   Standalone executable created at: dist\LitBuddy.exe
+    echo   Standalone executable created at: dist\ResearchLoom.exe
     echo =======================================================================
 ) else (
     echo [ERROR] PyInstaller build failed!
